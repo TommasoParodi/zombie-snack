@@ -109,7 +109,8 @@ oggetto in `CHARACTERS` (+ nuovo/i sprite in `SPRITES` se serve una forma o un o
 lanciare). Stesso principio per `ZOMBIE_TYPES` in `entities.js` (velocita'/vita/punti/scala/palette).
 
 Un personaggio non deve avere per forza le proporzioni umanoidi di `hero`/`heroTall`: `LUCA90`
-(`js/luca90.js`) e' un'automobile (`size: {w:16,h:8}`, piu' larga e bassa dei personaggi umani).
+(`js/luca90.js`) e' un carretto/macchinetta per bambini con Luca90 seduto dentro, testa e spalle
+visibili sopra la carrozzeria (`size: {w:16,h:9}`, piu' largo e basso dei personaggi umani).
 `Player.hitbox` (in `entities.js`) usa `Math.min(9, this.h)` per l'altezza da accovacciato proprio
 per restare corretto anche con personaggi gia' piu' bassi di 9px: se aggiungi un personaggio ancora
 piu' basso non serve toccare altro, la formula si adatta da sola.

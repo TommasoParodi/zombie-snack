@@ -1,12 +1,16 @@
-// Luca90: a bordo della sua macchina blu. Attacco: fascio di abbaglianti.
+// Luca90: a bordo di un carretto/macchinetta per bambini blu, seduto a cielo aperto
+// (testa e spalle visibili sopra la carrozzeria). Attacco: fascio di abbaglianti.
 // Super (stile Silvia, stessa meccanica di carica): INQUINAMENTO, un polverone
 // nero che esce dal tubo di scappamento e uccide sul contatto ogni zombie che
 // lo tocca, restando a mezz'aria per qualche istante invece di volare via.
 
+// Non un'auto vera: un carretto/macchinetta per bambini a cielo aperto, con Luca90
+// seduto dentro (testa e spalle visibili sopra la carrozzeria), volante incluso.
 SPRITES.luca90 = [
-  "................",
-  "....bbbbbbb.....",
-  "....bwwwwwb.....",
+  "......hhhh......",
+  ".....hssssh.....",
+  "....aaaaaaaa....",
+  "..bbaaaaaaaagb..",
   ".bbbbbbbbbbbbbb.",
   ".rbbbbbbbbbbbbl.",
   ".kkkkkkkkkkkkkk.",
@@ -17,7 +21,8 @@ SPRITES.luca90 = [
 SPRITES.luca90Crouch = [
   "................",
   "................",
-  "................",
+  "....aaaaaaaa....",
+  "..bbaaaaaaaagb..",
   ".bbbbbbbbbbbbbb.",
   ".rbbbbbbbbbbbbl.",
   ".kkkkkkkkkkkkkk.",
@@ -26,9 +31,10 @@ SPRITES.luca90Crouch = [
 ];
 
 SPRITES.luca90Jump = [
-  "................",
-  "....bbbbbbb.....",
-  "....bwwwwwb.....",
+  "......hhhh......",
+  ".....hssssh.....",
+  "....aaaaaaaa....",
+  "..bbaaaaaaaagb..",
   ".bbbbbbbbbbbbbb.",
   ".rbbbbbbbbbbbbl.",
   ".kkkkkkkkkkkkkk.",
@@ -44,9 +50,18 @@ CHARACTERS.push({
   name: "LUCA90",
   weapon: "ABBAGLIANTI",
   description: "Raggio che spazza tutti gli zombie + SUPER INQUINAMENTO",
-  size: { w: 16, h: 8 },
+  size: { w: 16, h: 9 },
   sprites: { stand: "luca90", crouch: "luca90Crouch", jump: "luca90Jump" },
-  palette: { b: "#1f5fb0", w: "#bfe3ff", r: "#e04b3a", l: "#fff4b0", k: "#141414" },
+  palette: {
+    h: "#3a2a1a",
+    s: "#e0ab7c",
+    a: "#2f8f5a",
+    b: "#1f5fb0",
+    g: "#3a3a3a",
+    r: "#e04b3a",
+    l: "#fff4b0",
+    k: "#141414",
+  },
   projectile: {
     // sprite/palette usati solo per l'icona nella schermata di selezione (drawMenu):
     // il fascio vero e proprio si disegna con un gradiente custom, vedi drawLucaBeam sotto.
