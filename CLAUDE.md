@@ -147,6 +147,20 @@ canvas, il terzo sinistro/destro dello schermo scorre il carosello, il terzo cen
 (vedi `handleClick`). Aggiungere un personaggio a `CHARACTERS` non richiede **nessuna** modifica a
 questa logica: il carosello si adatta da solo a qualunque lunghezza dell'array.
 
+### Personaggio segreto (pattern CAROTA)
+`CAROTA` (`js/carota.js`) non e' in `CHARACTERS` di default: essendo il carosello puramente
+"lunghezza dell'array" (vedi sopra), basta NON pushare il personaggio finche' non e' sbloccato
+perche' resti invisibile, senza toccare `drawMenu`/`updateMenu`/carosello. Lo sblocco e'
+persistente (`localStorage`, chiave `zombie-snack-carota-unlocked`): al caricamento, se gia'
+sbloccato in una sessione precedente, viene pushato subito in `CHARACTERS`; altrimenti resta fuori
+finche' non si completa, nello stato `"menu"`, la sequenza segreta (`CAROTA_SEQUENCE`, array di
+azioni `up`/`down` da inserire in ordine — `up`/`down` non sono usati da `updateMenu()` base,
+quindi liberi per questo) tracciata in un buffer a scorrimento dentro un wrap di
+`game.updateMenu`. Un wrap di `game.drawMenu` mostra un riquadro "PERSONAGGIO SBLOCCATO!" per
+`game.carotaUnlockFlash` frame quando lo sblocco avviene nella sessione corrente. Aggiungere un
+altro personaggio segreto = stesso schema in un nuovo file (chiave `localStorage` propria,
+sequenza propria).
+
 ### Entita' come classi leggere con update/draw
 `Player`, `Projectile`, `Zombie`, `Particle`, `FloatingText` in `entities.js`: ognuna ha `update()`
 e `draw(ctx)`, un flag `dead` e (dove serve collisione) un getter `hitbox`. `game.js` le tiene in
