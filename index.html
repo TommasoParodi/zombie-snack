@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zombie Snack - Berto &amp; Tommen</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <main class="cabinet">
+      <h1 class="cabinet__title">ZOMBIE SNACK</h1>
+
+      <div class="screen">
+        <!-- Il mondo di gioco ragiona in 320x180 "pixel di gioco", ma il canvas
+             ha una risoluzione reale 3 volte piu' alta (960x540): i pixel dei
+             personaggi restano quadrati e le scritte risultano nitide. -->
+        <canvas id="game" width="960" height="540"></canvas>
+      </div>
+
+      <section class="legend">
+        <h2>Comandi</h2>
+        <ul>
+          <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <span>Muoviti</span></li>
+          <li><kbd>Spazio</kbd> <span>Salta (doppio salto)</span></li>
+          <li><kbd>&darr;</kbd> <span>Abbassati</span></li>
+          <li><kbd>Shift</kbd> <span>Schivata invulnerabile</span></li>
+          <li><kbd>F</kbd> <span>Lancia oggetto</span></li>
+          <li><kbd>P</kbd> <span>Pausa</span></li>
+          <li><kbd>Esc</kbd> <span>Esci dalla partita (con conferma)</span></li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="js/sprites.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/game.js"></script>
+  </body>
+</html>

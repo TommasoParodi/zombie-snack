@@ -1,0 +1,112 @@
+:root {
+  --neon: #7ce87c;
+  --neon-dim: #2f6b2f;
+  --bg: #0b0d10;
+  --panel: #14181d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at 50% 0%, #1a1f26 0%, var(--bg) 70%);
+  color: var(--neon);
+  font-family: "Courier New", Courier, monospace;
+  letter-spacing: 1px;
+}
+
+.cabinet {
+  max-width: 1020px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.cabinet__title {
+  margin: 0;
+  font-size: clamp(22px, 5vw, 40px);
+  text-transform: uppercase;
+  text-shadow: 0 0 8px var(--neon), 0 0 22px var(--neon-dim);
+}
+
+.screen {
+  width: 100%;
+  padding: 10px;
+  background: var(--panel);
+  border: 3px solid var(--neon-dim);
+  border-radius: 10px;
+  box-shadow: 0 0 26px rgba(124, 232, 124, 0.18), inset 0 0 30px #000;
+}
+
+canvas {
+  display: block;
+  /* Il canvas e' 960x540: fino a 960px viene mostrato 1:1, quindi nitidissimo. */
+  width: 100%;
+  max-width: 960px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  background: #000;
+  /* Se lo schermo e' piu' piccolo, i pixel restano quadrati invece di sfumare. */
+  image-rendering: pixelated;
+}
+
+.legend {
+  width: 100%;
+  max-width: 980px;
+  padding: 18px 22px 22px;
+  border: 2px solid var(--neon-dim);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.legend h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px 32px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #cfe3cf;
+  letter-spacing: 0.5px;
+}
+
+.legend kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  padding: 4px 8px;
+  border: 1px solid var(--neon-dim);
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  background: #1c2430;
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
