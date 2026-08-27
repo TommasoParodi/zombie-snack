@@ -119,23 +119,24 @@ visibili sopra la carrozzeria (`size: {w:16,h:9}`, piu' largo e basso dei person
 per restare corretto anche con personaggi gia' piu' bassi di 9px: se aggiungi un personaggio ancora
 piu' basso non serve toccare altro, la formula si adatta da sola.
 
-### Super attacco a carica (pattern Silvia/Luca90)
+### Super attacco a carica (pattern Silvia/Luca90/Fabio)
 Alcuni personaggi hanno, oltre all'attacco base, un "super" attivabile con l'azione `super` (tasto
-Y) quando una barra di carica e' piena: Silvia (`js/silvia.js`, SENAPE) e Luca90 (`js/luca90.js`,
-INQUINAMENTO) lo implementano ciascuno nel proprio file, con lo stesso pattern duplicato
+Y) quando una barra di carica e' piena: Silvia (`js/silvia.js`, SENAPE), Luca90 (`js/luca90.js`,
+INQUINAMENTO) e Fabio (`js/fabio.js`, CAMERA D'ARIA — una gomma che vola in avanti e poi scoppia in
+un'onda circolare) lo implementano ciascuno nel proprio file, con lo stesso pattern duplicato
 volutamente (coerente con lo stile "un file per personaggio" del progetto, vedi `js/boledj.js` per
-un terzo esempio di personaggio con arma custom ma senza super): campo dati `character.super`
+un esempio di personaggio con arma custom ma senza super): campo dati `character.super`
 (`max`/`hitCharge`/`killBonus`), `player.superCharge`/`player.superReadyFlash` (inizializzati per
 *ogni* personaggio dal patch di `game.startGame` in `silvia.js`, quindi riusabili da chi arriva
 dopo senza reinizializzarli), `Player.prototype.addSuperCharge` esteso in catena (ogni file cattura
 la versione precedente come `base...` e la richiama prima di aggiungere il proprio ramo per il
-proprio `character.id`), una classe effetto dedicata (`MustardJarEffect`/`PollutionCloud`) con
-`update()`/`draw()`/`hitbox`, e i soliti wrap in catena di `game.updatePlaying`/`game.drawWorld`/
-`game.drawHud`/`Player.prototype.draw`/`Player.prototype.update`/`Zombie.prototype.takeDamage`/
-`game.registerKill` (ognuno cattura `base...` = versione corrente della funzione, la richiama, poi
-aggiunge il proprio comportamento solo se `character.id` corrisponde). Aggiungere un altro
-personaggio con super = nuovo file che segue lo stesso schema, caricato dopo `game.js` in
-`index.html`.
+proprio `character.id`), una classe effetto dedicata (`MustardJarEffect`/`PollutionCloud`/
+`TireBurstEffect`) con `update()`/`draw()`/`hitbox`, e i soliti wrap in catena di
+`game.updatePlaying`/`game.drawWorld`/`game.drawHud`/`Player.prototype.draw`/
+`Player.prototype.update`/`Zombie.prototype.takeDamage`/`game.registerKill` (ognuno cattura
+`base...` = versione corrente della funzione, la richiama, poi aggiunge il proprio comportamento
+solo se `character.id` corrisponde). Aggiungere un altro personaggio con super = nuovo file che
+segue lo stesso schema, caricato dopo `game.js` in `index.html`.
 
 ### Selezione personaggio a carosello
 `drawMenu()`/`updateMenu()` in `game.js` non assumono mai un numero fisso di personaggi: mostrano
