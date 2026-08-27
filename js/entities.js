@@ -39,7 +39,9 @@ class Player {
 
   /** Rettangolo di collisione: piu' basso quando il personaggio e' accovacciato. */
   get hitbox() {
-    const h = this.crouching ? 9 : this.h;
+    // Math.min: per personaggi gia' piu' bassi di 9px (es. l'auto di Luca90) l'accovacciata
+    // non deve mai risultare PIU' alta della posizione in piedi.
+    const h = this.crouching ? Math.min(9, this.h) : this.h;
     return { x: this.x + 1, y: this.y + (this.h - h), w: this.w - 2, h };
   }
 
@@ -170,6 +172,9 @@ class Projectile {
     this.bouncesLeft = config.bounces;
     this.spin = 0;
     this.dead = false;
+    // Armi "pierce" (es. il fascio di Luca90) colpiscono ogni zombie una volta sola anche
+    // se restano attive per piu' frame: qui si tiene traccia di chi e' gia' stato colpito.
+    this.hitZombieIds = config.pierce ? new Set() : null;
     // Vita limitata (in frame): usata da armi corto raggio come il pugno di Pruzzo
     // per sparire dopo pochi frame invece di attraversare tutto lo schermo.
     this.life = config.life ?? Infinity;

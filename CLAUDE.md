@@ -95,11 +95,42 @@ dell'arma dal corpo — per Pruzzo simula un braccio lungo che colpisce piu' dis
 `melee`, `Projectile.drawArm()` disegna il braccio come un semplice rettangolo pieno (colore
 `palette.s`, la pelle) tra il bordo del corpo del proprietario e il pugno: non e' uno sprite a
 mappa di caratteri perche' la sua lunghezza cambia con `reach`/la posizione, non e' una forma
-fissa. L'azione logica resta `attack` (non "lancio"): l'input,
+fissa. Un altro flag generico e' `pierce: true` (letto in `game.resolveCollisions`, `game.js`): un
+proiettile "pierce" non sparisce al primo zombie colpito, continua a danneggiare chiunque entri nel
+suo raggio finche' resta attivo (`config.life`), un solo colpo a testa (tracciato in
+`projectile.hitZombieIds`, popolato solo se `config.pierce`). Usato dagli abbaglianti di Luca90
+(`js/luca90.js`): li' il proiettile e' anche "anchorato" all'auto come il pugno di Pruzzo, ma con
+un `Projectile.prototype.update`/`draw` dedicato (stesso schema del "whip" di Boledj in
+`boledj.js`) che lo ridisegna ogni frame come un rettangolo largo `reach` invece di un piccolo
+sprite fisso, per rappresentare un fascio di luce che copre un'area invece di un punto. L'azione logica resta `attack` (non "lancio"): l'input,
 l'etichetta dei comandi (`index.html`) e la barra di ricarica sono generici, la differenza fra
 "lanciare" e "colpire" sta solo nella config del proiettile. Per aggiungere un personaggio: nuovo
 oggetto in `CHARACTERS` (+ nuovo/i sprite in `SPRITES` se serve una forma o un oggetto nuovo da
 lanciare). Stesso principio per `ZOMBIE_TYPES` in `entities.js` (velocita'/vita/punti/scala/palette).
+
+Un personaggio non deve avere per forza le proporzioni umanoidi di `hero`/`heroTall`: `LUCA90`
+(`js/luca90.js`) e' un'automobile (`size: {w:16,h:8}`, piu' larga e bassa dei personaggi umani).
+`Player.hitbox` (in `entities.js`) usa `Math.min(9, this.h)` per l'altezza da accovacciato proprio
+per restare corretto anche con personaggi gia' piu' bassi di 9px: se aggiungi un personaggio ancora
+piu' basso non serve toccare altro, la formula si adatta da sola.
+
+### Super attacco a carica (pattern Silvia/Luca90)
+Alcuni personaggi hanno, oltre all'attacco base, un "super" attivabile con l'azione `super` (tasto
+Y) quando una barra di carica e' piena: Silvia (`js/silvia.js`, SENAPE) e Luca90 (`js/luca90.js`,
+INQUINAMENTO) lo implementano ciascuno nel proprio file, con lo stesso pattern duplicato
+volutamente (coerente con lo stile "un file per personaggio" del progetto, vedi `js/boledj.js` per
+un terzo esempio di personaggio con arma custom ma senza super): campo dati `character.super`
+(`max`/`hitCharge`/`killBonus`), `player.superCharge`/`player.superReadyFlash` (inizializzati per
+*ogni* personaggio dal patch di `game.startGame` in `silvia.js`, quindi riusabili da chi arriva
+dopo senza reinizializzarli), `Player.prototype.addSuperCharge` esteso in catena (ogni file cattura
+la versione precedente come `base...` e la richiama prima di aggiungere il proprio ramo per il
+proprio `character.id`), una classe effetto dedicata (`MustardJarEffect`/`PollutionCloud`) con
+`update()`/`draw()`/`hitbox`, e i soliti wrap in catena di `game.updatePlaying`/`game.drawWorld`/
+`game.drawHud`/`Player.prototype.draw`/`Player.prototype.update`/`Zombie.prototype.takeDamage`/
+`game.registerKill` (ognuno cattura `base...` = versione corrente della funzione, la richiama, poi
+aggiunge il proprio comportamento solo se `character.id` corrisponde). Aggiungere un altro
+personaggio con super = nuovo file che segue lo stesso schema, caricato dopo `game.js` in
+`index.html`.
 
 ### Selezione personaggio a carosello
 `drawMenu()`/`updateMenu()` in `game.js` non assumono mai un numero fisso di personaggi: mostrano

@@ -268,20 +268,26 @@ const game = {
   },
 
   resolveCollisions() {
-    // Proiettili contro zombie
+    // Proiettili contro zombie. Le armi normali colpiscono un solo zombie e spariscono;
+    // le armi "pierce" (es. il fascio di luce di Luca90) attraversano e colpiscono tutti
+    // gli zombie nel raggio finche' restano attive (vedi config.life), un solo colpo a testa.
     for (const projectile of this.projectiles) {
       if (projectile.dead) continue;
+      let hitAny = false;
       for (const zombie of this.zombies) {
         if (zombie.dead) continue;
+        if (projectile.hitZombieIds && projectile.hitZombieIds.has(zombie)) continue;
         if (!rectsOverlap(projectile.hitbox, zombie.hitbox)) continue;
 
-        projectile.dead = true;
+        if (projectile.hitZombieIds) projectile.hitZombieIds.add(zombie);
+        hitAny = true;
         const killed = zombie.takeDamage(projectile.config.damage);
         this.spawnImpact(projectile.x, projectile.y);
 
         if (killed) this.registerKill(zombie);
-        break;
+        if (!projectile.config.pierce) break;
       }
+      if (hitAny && !projectile.config.pierce) projectile.dead = true;
     }
 
     // Zombie contro giocatore
