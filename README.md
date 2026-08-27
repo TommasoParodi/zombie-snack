@@ -7,7 +7,7 @@ Nessuna installazione, nessuna dipendenza: si apre direttamente nel browser.
 
 1. Apri il file `index.html` con un doppio clic (funziona con Chrome, Edge, Firefox).
 2. Nella schermata iniziale scorri il carosello dei personaggi con le frecce `←`/`→` (o toccando/cliccando ai lati dello schermo) e premi INVIO (o tocca al centro) per iniziare.
-3. Sopravvivi il piu' possibile eliminando gli zombie a colpi di oggetti lanciati.
+3. Sopravvivi il piu' possibile eliminando gli zombie a colpi d'attacco (lanci o pugni, secondo il personaggio).
 
 Sul **telefono** la pagina diventa una console portatile stile Game Boy: usa la croce per scorrere i personaggi, tocca al centro dello schermo o premi A per iniziare, poi gioca con croce e pulsanti A/B. Per provarlo dal cellulare, apri `index.html` dal telefono (es. dalla cartella OneDrive) oppure, dal computer, avvia un server locale e apri l'indirizzo Wi‑Fi nel browser del telefono.
 
@@ -17,6 +17,7 @@ Sul **telefono** la pagina diventa una console portatile stile Game Boy: usa la 
 | ----------- | --------------- | ----------------------------------------------------- |
 | **Berto**   | Tazze di caffe' | Lancio rapido e teso, 1 danno, ricarica veloce        |
 | **Tommen**  | Paperelle       | Lancio ad arco che rimbalza una volta, 2 danni        |
+| **Pruzzo**  | Pugni           | Piu' alto degli altri, colpo corto ravvicinato, 3 danni |
 
 ## Comandi
 
@@ -26,7 +27,7 @@ Sul **telefono** la pagina diventa una console portatile stile Game Boy: usa la 
 | `SPAZIO` / `W`  | Salta (doppio salto disponibile)           |
 | `↓` / `S`       | Abbassati (riduce la hitbox)               |
 | `SHIFT`         | Schivata rapida con brevi frame invincibili |
-| `F` / `J`       | Lancia l'oggetto                           |
+| `F` / `J`       | Attacca (lancio o pugno, secondo il personaggio) |
 | `P`             | Pausa                                      |
 | `INVIO`         | Conferma / rigioca                         |
 | `ESC`           | Esci dalla partita: chiede conferma (`INVIO` per uscire, `ESC` per continuare) |
@@ -38,7 +39,7 @@ Sul **telefono** la pagina diventa una console portatile stile Game Boy: usa la 
 | Croce `←` `→`   | Muoviti                                    |
 | Croce `↑` / `A` | Salta (doppio salto)                       |
 | Croce `↓`       | Abbassati                                  |
-| `B`             | Lancia l'oggetto                           |
+| `B`             | Attacca (lancio o pugno, secondo il personaggio) |
 | `SELECT`        | Schivata (in pausa: esci dalla partita)    |
 | `START`         | Pausa / continua                           |
 
@@ -64,9 +65,11 @@ js/game.js          stati di gioco, spawn, collisioni, punteggio, disegno
 
 ## Come aggiungere un personaggio
 
-Aggiungi un oggetto all'array `CHARACTERS` in `js/sprites.js` con la sua palette e la
-configurazione del proiettile (`sprite`, `speed`, `gravity`, `damage`, `cooldown`, `bounces`).
-Se serve un nuovo oggetto da lanciare, disegnalo come mappa di caratteri in `SPRITES`.
+Aggiungi un oggetto all'array `CHARACTERS` in `js/sprites.js` con `size` (dimensioni del
+personaggio), `sprites` (pose `stand`/`crouch`/`jump`), la sua palette e la configurazione del
+proiettile (`sprite`, `speed`, `gravity`, `damage`, `cooldown`, `bounces`, `life` opzionale — un
+attacco a corto raggio come un pugno usa `life` basso invece di attraversare tutto lo schermo).
+Se serve una forma o un oggetto nuovo, disegnalo come mappa di caratteri in `SPRITES`.
 
 La schermata di selezione e' un carosello (un personaggio alla volta, con frecce e puntini di
 posizione): supporta automaticamente qualunque numero di voci in `CHARACTERS`, non serve toccare

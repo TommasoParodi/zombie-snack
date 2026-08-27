@@ -69,10 +69,25 @@ condividono poche forme ma tanti colori (es. `ZOMBIE_PALETTE`, `ZOMBIE_PALETTE_F
 bianco quando uno zombie viene colpito, scia bianca semitrasparente nella schivata).
 
 ### Personaggi/oggetti come configurazione dati
-`CHARACTERS` (`sprites.js`) e' un array di oggetti dati: palette dell'eroe + config del proiettile
-(`sprite`, `palette`, `speed`, `gravity`, `damage`, `cooldown`, `bounces`). `Player.throwProjectile`
-e `Projectile` leggono solo questa config, senza logica specifica per personaggio. Per aggiungere un
-personaggio: nuovo oggetto in `CHARACTERS` (+ nuovo sprite in `SPRITES` se serve un oggetto nuovo da
+`CHARACTERS` (`sprites.js`) e' un array di oggetti dati: `size` (`w`/`h` in pixel di gioco),
+`sprites` (nomi delle chiavi in `SPRITES` per le tre pose: `stand`/`crouch`/`jump`), palette
+dell'eroe, e config del proiettile (`sprite`, `palette`, `speed`, `gravity`, `damage`, `cooldown`,
+`bounces`, `life` opzionale, `melee` opzionale, `reach` opzionale). `Player` legge `size`/`sprites` per dimensioni e
+disegno (vedi `Pruzzo`, piu' alto degli altri con sprite dedicati `heroTall*`); `Player.attack` e
+`Projectile` leggono solo la config del proiettile, senza logica specifica per personaggio. `life`
+(frame prima che il proiettile sparisca da solo) e `melee: true` sono quello che rende il pugno di
+Pruzzo un attacco corpo a corpo invece di un lancio: con `melee` il `Projectile` ignora `vx`/`vy`/
+`gravity`/`bounces` e ogni frame si riancora a una posizione fissa rispetto al proprietario
+(`Projectile.anchorX/anchorY`, calcolati alla creazione), restando "attaccato" al personaggio
+invece di attraversare lo schermo. `reach` (in `Player.attack`) allontana il punto di comparsa
+dell'arma dal corpo — per Pruzzo simula un braccio lungo che colpisce piu' distante. Per le armi
+`melee`, `Projectile.drawArm()` disegna il braccio come un semplice rettangolo pieno (colore
+`palette.s`, la pelle) tra il bordo del corpo del proprietario e il pugno: non e' uno sprite a
+mappa di caratteri perche' la sua lunghezza cambia con `reach`/la posizione, non e' una forma
+fissa. L'azione logica resta `attack` (non "lancio"): l'input,
+l'etichetta dei comandi (`index.html`) e la barra di ricarica sono generici, la differenza fra
+"lanciare" e "colpire" sta solo nella config del proiettile. Per aggiungere un personaggio: nuovo
+oggetto in `CHARACTERS` (+ nuovo/i sprite in `SPRITES` se serve una forma o un oggetto nuovo da
 lanciare). Stesso principio per `ZOMBIE_TYPES` in `entities.js` (velocita'/vita/punti/scala/palette).
 
 ### Selezione personaggio a carosello

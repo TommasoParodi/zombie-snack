@@ -19,8 +19,8 @@ function rectsOverlap(a, b) {
 class Player {
   constructor(character) {
     this.character = character;
-    this.w = 10;
-    this.h = 14;
+    this.w = character.size.w;
+    this.h = character.size.h;
     this.x = 40;
     this.y = GROUND_Y - this.h;
     this.vx = 0;
@@ -79,9 +79,9 @@ class Player {
       this.onGround = false;
     }
 
-    // --- Attacco: lancio dell'oggetto ---
+    // --- Attacco: lancio o pugno, secondo l'arma del personaggio ---
     if (Input.isDown("attack") && this.attackCooldown === 0) {
-      this.throwProjectile(game);
+      this.attack(game);
     }
 
     // --- Fisica ---
@@ -104,11 +104,13 @@ class Player {
     }
   }
 
-  throwProjectile(game) {
+  attack(game) {
     const config = this.character.projectile;
     this.attackCooldown = config.cooldown;
 
-    const originX = this.x + (this.facing === 1 ? this.w - 2 : -4);
+    // reach: quanto il braccio/l'arma si allunga oltre il corpo (es. il pugno di Pruzzo).
+    const reach = config.reach ?? 0;
+    const originX = this.x + (this.facing === 1 ? this.w - 2 + reach : -4 - reach);
     const originY = this.y + (this.crouching ? 8 : 4);
 
     game.projectiles.push(
@@ -118,6 +120,7 @@ class Player {
         vx: this.facing * config.speed,
         vy: -1.1,
         config,
+        owner: this,
       })
     );
   }
@@ -136,9 +139,10 @@ class Player {
     // Lampeggio quando si e' invulnerabili: 3 frame visibile, 3 nascosto.
     if (this.invulnerable > 0 && Math.floor(this.invulnerable / 3) % 2 === 1) return;
 
-    let sprite = SPRITES.hero;
-    if (this.crouching) sprite = SPRITES.heroCrouch;
-    else if (!this.onGround) sprite = SPRITES.heroJump;
+    const sprites = this.character.sprites;
+    let sprite = SPRITES[sprites.stand];
+    if (this.crouching) sprite = SPRITES[sprites.crouch];
+    else if (!this.onGround) sprite = SPRITES[sprites.jump];
 
     if (this.dodgeTimer > 0) {
       // Scia della schivata
@@ -150,17 +154,25 @@ class Player {
 }
 
 class Projectile {
-  constructor({ x, y, vx, vy, config }) {
+  constructor({ x, y, vx, vy, config, owner }) {
     this.x = x;
     this.y = y;
     this.vx = vx;
     this.vy = vy;
     this.config = config;
+    this.owner = owner;
+    // Armi "attaccate al corpo" (es. il pugno di Pruzzo): invece di muoversi per conto
+    // proprio restano ancorate a un punto fisso rispetto al proprietario.
+    this.anchorX = x - owner.x;
+    this.anchorY = y - owner.y;
     this.w = 8;
     this.h = 7;
     this.bouncesLeft = config.bounces;
     this.spin = 0;
     this.dead = false;
+    // Vita limitata (in frame): usata da armi corto raggio come il pugno di Pruzzo
+    // per sparire dopo pochi frame invece di attraversare tutto lo schermo.
+    this.life = config.life ?? Infinity;
   }
 
   get hitbox() {
@@ -169,25 +181,48 @@ class Projectile {
 
   update() {
     this.spin++;
-    this.vy += this.config.gravity;
-    this.x += this.vx;
-    this.y += this.vy;
 
-    if (this.y + this.h >= GROUND_Y) {
-      if (this.bouncesLeft > 0) {
-        this.bouncesLeft--;
-        this.y = GROUND_Y - this.h;
-        this.vy = -Math.abs(this.vy) * 0.7 - 1.2;
-      } else {
-        this.dead = true;
+    if (this.config.melee) {
+      this.x = this.owner.x + this.anchorX;
+      this.y = this.owner.y + this.anchorY;
+    } else {
+      this.vy += this.config.gravity;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      if (this.y + this.h >= GROUND_Y) {
+        if (this.bouncesLeft > 0) {
+          this.bouncesLeft--;
+          this.y = GROUND_Y - this.h;
+          this.vy = -Math.abs(this.vy) * 0.7 - 1.2;
+        } else {
+          this.dead = true;
+        }
       }
+
+      if (this.x < -12 || this.x > GAME_W + 12) this.dead = true;
     }
 
-    if (this.x < -12 || this.x > GAME_W + 12) this.dead = true;
+    this.life--;
+    if (this.life <= 0) this.dead = true;
   }
 
   draw(ctx) {
-    drawSprite(ctx, SPRITES[this.config.sprite], this.x, this.y, this.config.palette, this.vx < 0);
+    const flip = this.config.melee ? this.owner.facing === -1 : this.vx < 0;
+    if (this.config.melee) this.drawArm(ctx);
+    drawSprite(ctx, SPRITES[this.config.sprite], this.x, this.y, this.config.palette, flip);
+  }
+
+  /** Braccio disegnato come segmento pieno tra la spalla e il pugno: si allunga con la reach. */
+  drawArm(ctx) {
+    const shoulderX = this.owner.facing === 1 ? this.owner.x + this.owner.w - 2 : this.owner.x + 2;
+    const nearFistX = this.owner.facing === 1 ? this.x : this.x + this.w;
+    const armX = Math.round(Math.min(shoulderX, nearFistX));
+    const armW = Math.round(Math.abs(nearFistX - shoulderX));
+    const armY = Math.round(this.y + this.h / 2 - 1);
+
+    ctx.fillStyle = this.owner.character.palette.s;
+    ctx.fillRect(armX, armY, armW, 3);
   }
 }
 

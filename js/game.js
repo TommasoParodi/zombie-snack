@@ -458,10 +458,10 @@ const game = {
     ctx.lineWidth = 1;
     ctx.strokeRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1);
 
-    // Personaggio ingrandito 3 volte (30x42 pixel di gioco)
-    drawSprite(ctx, SPRITES.hero, centerX - 15, cardY + 6, character.palette, false, 3);
+    // Personaggio ingrandito 3 volte (30 pixel di gioco di larghezza, altezza variabile)
+    drawSprite(ctx, SPRITES[character.sprites.stand], centerX - 15, cardY + 6, character.palette, false, 3);
 
-    // Oggetto che lancia, ingrandito 2 volte
+    // Icona dell'arma (oggetto lanciato o pugno), ingrandita 2 volte
     const proj = character.projectile;
     drawSprite(ctx, SPRITES[proj.sprite], cardX + cardW - 26, cardY + 20, proj.palette, false, 2);
 
