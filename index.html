@@ -10,8 +10,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <title>Zombie Snack - Berto &amp; Tommen</title>
+    <title>Zombie Snack</title>
     <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/silvia.css" />
   </head>
   <body>
     <main class="cabinet">
@@ -20,17 +21,12 @@
       <div class="handheld">
         <div class="handheld__bezel">
           <div class="screen">
-            <!-- Il mondo di gioco ragiona in 320x180 "pixel di gioco", ma il canvas
-                 ha una risoluzione reale 3 volte piu' alta (960x540): i pixel dei
-                 personaggi restano quadrati e le scritte risultano nitide. -->
             <canvas id="game" width="960" height="540"></canvas>
           </div>
           <p class="handheld__caption">DOT MATRIX WITH STEREO SOUND</p>
         </div>
 
-        <!-- Comandi stile Game Boy: visibili sul telefono (vedi CSS).
-             data-action usa gli stessi nomi della tastiera (left, jump, ...). -->
-        <div id="touch-pad" class="touch-pad" aria-label="Comandi Game Boy">
+        <div id="touch-pad" class="touch-pad" aria-label="Comandi portatile">
           <div class="gb-dpad" aria-label="Croce direzionale">
             <button type="button" class="gb-dpad__btn gb-dpad__btn--up" data-action="up" aria-label="Salta"></button>
             <button type="button" class="gb-dpad__btn gb-dpad__btn--left" data-action="left" aria-label="Sinistra"></button>
@@ -41,6 +37,18 @@
 
           <div class="gb-face">
             <div class="gb-ab">
+              <div class="gb-ab__slot gb-ab__slot--x">
+                <button type="button" class="gb-round gb-round--x" data-action="dodge" aria-label="Scatto">
+                  <span>X</span>
+                </button>
+                <span class="gb-ab__label">SCATTO</span>
+              </div>
+              <div class="gb-ab__slot gb-ab__slot--y">
+                <button type="button" class="gb-round gb-round--y gb-round--super" data-action="super" aria-label="Super">
+                  <span>Y</span>
+                </button>
+                <span class="gb-ab__label">SUPER</span>
+              </div>
               <div class="gb-ab__slot gb-ab__slot--b">
                 <button type="button" class="gb-round" data-action="attack" aria-label="Attacca">
                   <span>B</span>
@@ -57,7 +65,7 @@
           </div>
 
           <div class="gb-pills">
-            <button type="button" class="gb-pill" data-action="dodge">
+            <button type="button" class="gb-pill" data-action="back">
               <span class="gb-pill__key"></span>
               <span class="gb-pill__name">SELECT</span>
             </button>
@@ -79,8 +87,9 @@
           <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <span>Muoviti</span></li>
           <li><kbd>Spazio</kbd> <span>Salta (doppio salto)</span></li>
           <li><kbd>&darr;</kbd> <span>Abbassati</span></li>
-          <li><kbd>Shift</kbd> <span>Schivata invulnerabile</span></li>
+          <li><kbd>X</kbd> <span>Scatto invulnerabile</span></li>
           <li><kbd>F</kbd> <span>Attacca</span></li>
+          <li><kbd>Y</kbd> <span>Super (quando disponibile)</span></li>
           <li><kbd>P</kbd> <span>Pausa</span></li>
           <li><kbd>Esc</kbd> <span>Esci dalla partita (con conferma)</span></li>
         </ul>
@@ -91,5 +100,6 @@
     <script src="js/input.js"></script>
     <script src="js/entities.js"></script>
     <script src="js/game.js"></script>
+    <script src="js/silvia.js"></script>
   </body>
 </html>
