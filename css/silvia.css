@@ -1,30 +1,19 @@
-/* Quattro pulsanti frontali stile Nintendo DS: X sopra, Y a sinistra, A a destra, B sotto. */
+/* Quattro pulsanti frontali stile Nintendo DS: Y/X sopra, B/A sotto. */
 @media (max-width: 820px), (hover: none) and (pointer: coarse) and (max-width: 1024px) {
-  .gb-face {
-    align-self: center;
-  }
-
   .gb-ab {
     display: grid;
-    grid-template-columns: repeat(3, 58px);
-    grid-template-rows: repeat(3, 66px);
-    column-gap: 6px;
-    row-gap: 6px;
+    grid-template-columns: repeat(3, 54px);
+    grid-template-rows: repeat(3, 54px);
+    gap: 0;
     margin: 0;
-    width: 186px;
-    height: 210px;
+    width: 162px;
+    height: 162px;
     position: relative;
-    align-items: start;
-    justify-items: center;
   }
 
   .gb-ab__slot {
-    width: 58px;
-    min-height: 66px;
-    gap: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    width: 54px;
+    gap: 3px;
   }
 
   .gb-ab__slot--x { grid-column: 2; grid-row: 1; }
@@ -33,20 +22,15 @@
   .gb-ab__slot--b { grid-column: 2; grid-row: 3; transform: none; }
 
   .gb-round {
-    width: 50px;
-    height: 50px;
-    flex: 0 0 50px;
+    width: 52px;
+    height: 52px;
     font-size: 16px;
   }
 
   .gb-ab__label {
-    display: block;
-    margin-top: 8px;
+    margin-top: 3px;
     font-size: 7px;
-    line-height: 9px;
-    min-height: 9px;
-    letter-spacing: 0.45px;
-    white-space: nowrap;
+    letter-spacing: 0.5px;
   }
 
   .gb-round--x,
