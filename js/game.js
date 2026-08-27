@@ -12,6 +12,9 @@ const SCALE = canvas.width / GAME_W;
 
 const HIGHSCORE_KEY = "zombie-snack-highscore";
 
+/** Caratteri disponibili nel selettore di nickname stile arcade: spazio (casella vuota) + cifre + lettere. */
+const NAME_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 /** Durata (in frame, ~60 al secondo) della vibrazione quando si perde: 0,5 s. */
 const DEATH_SHAKE_FRAMES = 30;
 
@@ -179,6 +182,9 @@ const game = {
         if (Input.wasPressed("confirm") || Input.wasPressed("jump") || Input.wasPressed("attack")) this.goToMenu();
         if (Input.wasPressed("back") || Input.wasPressed("pause") || Input.wasPressed("dodge")) this.state = "playing";
         break;
+      case "enterName":
+        this.updateEnterName();
+        break;
       case "gameover":
         if (Input.wasPressed("confirm") || Input.wasPressed("jump") || Input.wasPressed("attack")) this.startGame();
         if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.goToMenu();
@@ -327,12 +333,44 @@ const game = {
   },
 
   endGame() {
-    this.state = "gameover";
+    this.state = "enterName";
     this.screenShake = DEATH_SHAKE_FRAMES;
     if (this.score > this.highscore) {
       this.highscore = this.score;
       localStorage.setItem(HIGHSCORE_KEY, String(this.highscore));
     }
+    this.nameSlots = [0, 0, 0];
+    this.nameSlotIndex = 0;
+  },
+
+  /** Selettore di nickname stile arcade: sinistra/destra cambiano la lettera/cifra della casella attiva. */
+  updateEnterName() {
+    if (Input.wasPressed("left")) this.cycleNameSlot(-1);
+    if (Input.wasPressed("right")) this.cycleNameSlot(1);
+
+    if (Input.wasPressed("confirm") || Input.wasPressed("jump")) {
+      if (this.nameSlotIndex < 2) this.nameSlotIndex++;
+      else this.finishEnterName(true);
+    }
+
+    if (Input.wasPressed("back") || Input.wasPressed("dodge")) {
+      this.finishEnterName(false);
+    }
+  },
+
+  cycleNameSlot(delta) {
+    const n = NAME_CHARSET.length;
+    const cur = this.nameSlots[this.nameSlotIndex];
+    this.nameSlots[this.nameSlotIndex] = (cur + delta + n) % n;
+  },
+
+  /** Conferma (con salvataggio) o annulla l'inserimento nickname e passa alla normale schermata di game over. */
+  finishEnterName(shouldSave) {
+    if (shouldSave) {
+      const nickname = this.nameSlots.map((i) => NAME_CHARSET[i]).join("").replace(/\s/g, "");
+      Scores.save({ nickname, score: this.score, kills: this.kills, character: this.character ? this.character.id : null });
+    }
+    this.state = "gameover";
   },
 
   // ---------------------------------------------------------------- DISEGNO
@@ -357,6 +395,7 @@ const game = {
       this.drawHud();
       if (this.state === "paused") this.drawPause();
       if (this.state === "confirmQuit") this.drawConfirmQuit();
+      if (this.state === "enterName") this.drawEnterName();
       if (this.state === "gameover") this.drawGameOver();
     }
   },
@@ -525,6 +564,57 @@ const game = {
     text(this.hint("INVIO = SI", "A O TOCCA SX = SI"), GAME_W / 2, 86, { size: 8, align: "center", color: COLORS.accent });
     text(this.hint("ESC = CONTINUA A GIOCARE", "START O TOCCA DX = NO"), GAME_W / 2, 100, {
       size: 8,
+      align: "center",
+      color: "#a9c9a9",
+    });
+  },
+
+  drawEnterName() {
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    ctx.fillStyle = "rgba(10,16,22,0.95)";
+    ctx.fillRect(60, 40, GAME_W - 120, 92);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(60.5, 40.5, GAME_W - 121, 91);
+
+    text("NUOVO PUNTEGGIO", GAME_W / 2, 48, { size: 11, align: "center", color: COLORS.accent });
+    text(`PUNTI: ${this.score}`, GAME_W / 2, 62, { size: 9, align: "center" });
+
+    const boxW = 22;
+    const boxH = 26;
+    const gap = 6;
+    const totalW = boxW * 3 + gap * 2;
+    const startX = GAME_W / 2 - totalW / 2;
+    const boxY = 80;
+
+    for (let i = 0; i < 3; i++) {
+      const x = startX + i * (boxW + gap);
+      const active = i === this.nameSlotIndex;
+      ctx.fillStyle = active ? "rgba(124,232,124,0.25)" : "rgba(255,255,255,0.06)";
+      ctx.fillRect(x, boxY, boxW, boxH);
+      ctx.strokeStyle = active ? COLORS.accent : "#3a4450";
+      ctx.strokeRect(x + 0.5, boxY + 0.5, boxW - 1, boxH - 1);
+
+      const ch = NAME_CHARSET[this.nameSlots[i]];
+      text(ch === " " ? "_" : ch, x + boxW / 2, boxY + 6, {
+        size: 14,
+        align: "center",
+        color: active ? COLORS.accent : COLORS.text,
+      });
+    }
+
+    const blink = Math.floor(Date.now() / 400) % 2 === 0;
+    if (blink) {
+      text(this.hint("FRECCE = CAMBIA - INVIO = CONFERMA", "CROCE = CAMBIA - A = CONFERMA"), GAME_W / 2, 114, {
+        size: 7,
+        align: "center",
+        color: "#ffe066",
+      });
+    }
+    text(this.hint("ESC = SALTA SENZA SALVARE", "SELECT = SALTA SENZA SALVARE"), GAME_W / 2, 124, {
+      size: 7,
       align: "center",
       color: "#a9c9a9",
     });

@@ -19,13 +19,19 @@ L'ordine di caricamento in `index.html` e' significativo: ogni script usa global
 precedente (nessun modulo, nessun import/export).
 
 ```
-index.html          markup: canvas, D-pad/pulsanti touch, legenda comandi desktop
-css/style.css       layout "cabinato" (desktop) + skin "Game Boy" (mobile)
-js/sprites.js       1) SPRITES (mappe di caratteri), CHARACTERS, palette, drawSprite/drawSpriteTinted
-js/input.js         2) Input: astrae tastiera + touch dietro azioni logiche condivise
-js/entities.js      3) costanti mondo di gioco, classi Player/Projectile/Zombie/Particle/FloatingText
-js/game.js          4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
+index.html              markup: canvas, D-pad/pulsanti touch, legenda comandi desktop
+css/style.css           layout "cabinato" (desktop) + skin "Game Boy" (mobile)
+js/firebase-config.js   0) configurazione del progetto Firebase (per js/scores.js), caricato
+                        insieme all'SDK Firebase (CDN, build "compat") prima di tutto il resto
+js/sprites.js           1) SPRITES (mappe di caratteri), CHARACTERS, palette, drawSprite/drawSpriteTinted
+js/input.js             2) Input: astrae tastiera + touch dietro azioni logiche condivise
+js/entities.js          3) costanti mondo di gioco, classi Player/Projectile/Zombie/Particle/FloatingText
+js/scores.js            3.5) modulo `Scores`: salva i punteggi su Firestore (fallback localStorage)
+js/game.js              4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
 ```
+
+Persistenza dei punteggi: vedi `docs/punteggi-persistenza.md` per architettura, percorso
+decisionale e istruzioni di setup del progetto Firebase.
 
 Non spostare la logica di gioco nel file sbagliato: `sprites.js` non deve conoscere lo stato di
 gioco, `entities.js` non deve disegnare la UI/HUD (quella resta in `game.js`).
@@ -41,10 +47,15 @@ transform e ridisegna a risoluzione reale per restare nitido invece di scalare i
 `ctx.imageSmoothingEnabled = false` + CSS `image-rendering: pixelated` mantengono il look pixel-art.
 
 ### Macchina a stati del gioco
-`game.state` e' una stringa: `menu -> playing -> (paused | confirmQuit) -> gameover -> menu`.
-`game.update()` fa uno switch sullo stato e delega a `updateMenu()`/`updatePlaying()`/inline per gli
-altri; `game.draw()` fa lo stesso per il disegno (`drawMenu`, `drawWorld`+`drawHud`, `drawPause`,
-`drawConfirmQuit`, `drawGameOver`). Aggiungere un nuovo stato = aggiungere un case in entrambi gli
+`game.state` e' una stringa: `menu -> playing -> (paused | confirmQuit) -> enterName -> gameover ->
+menu`. Lo stato `enterName` si inserisce tra la morte del giocatore (`endGame()`) e la normale
+schermata di game over: mostra un selettore di nickname stile arcade a 3 caselle
+(`updateEnterName`/`drawEnterName`, costante `NAME_CHARSET`), poi salva il punteggio (o lo salta)
+tramite `Scores.save()` (vedi `js/scores.js` e `docs/punteggi-persistenza.md`) prima di passare a
+`"gameover"`. `game.update()` fa uno switch sullo stato e delega a
+`updateMenu()`/`updatePlaying()`/`updateEnterName()`/inline per gli altri; `game.draw()` fa lo
+stesso per il disegno (`drawMenu`, `drawWorld`+`drawHud`, `drawPause`, `drawConfirmQuit`,
+`drawEnterName`, `drawGameOver`). Aggiungere un nuovo stato = aggiungere un case in entrambi gli
 switch, piu' l'eventuale funzione `drawX`/`updateX`.
 
 ### Game loop
