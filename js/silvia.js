@@ -77,7 +77,7 @@ CHARACTERS.push({
   id: "silvia",
   name: "SILVIA",
   weapon: "GNOCCHI ALLA ROMANA",
-  description: "Raffica leggera + SUPER SENAPE",
+  description: "Raffica + SUPER SENAPE",
   size: { w: 10, h: 14 },
   sprites: { stand: "silvia", crouch: "silviaCrouch", jump: "silviaJump" },
   palette: {
