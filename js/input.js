@@ -19,6 +19,8 @@ const KEY_MAP = {
   Space: "jump",
   ShiftLeft: "dodge",
   ShiftRight: "dodge",
+  KeyX: "dodge",
+  KeyY: "super",
   KeyF: "attack",
   KeyJ: "attack",
   Enter: "confirm",
@@ -57,7 +59,6 @@ const Input = {
       this.release(action);
     });
 
-    // Se la finestra perde il focus, "rilasciamo" tutti i tasti.
     window.addEventListener("blur", () => {
       this.down.clear();
       this.pressed.clear();
@@ -76,11 +77,6 @@ const Input = {
     this.down.delete(action);
   },
 
-  /**
-   * Collega i pulsanti HTML (data-action="jump") al sistema di input.
-   * pointerdown/up funziona sia col dito sia col mouse, e ogni dito e'
-   * indipendente: puoi tenere SINISTRA e toccare SALTA nello stesso momento.
-   */
   bindTouchPad() {
     const pad = document.getElementById("touch-pad");
     if (!pad) return;
@@ -107,13 +103,10 @@ const Input = {
         button.classList.remove("is-held");
         this.release(action);
       });
-
-      // Evita il menu "copia/incolla" se tieni premuto un pulsante.
       button.addEventListener("contextmenu", (event) => event.preventDefault());
     });
   },
 
-  /** Sul telefono, uno swipe sul gioco non deve far scorrere la pagina. */
   preventPageScroll() {
     const block = (event) => {
       if (event.target.closest(".handheld, .touch-pad, .screen, canvas")) {
@@ -131,7 +124,6 @@ const Input = {
     return this.pressed.has(action);
   },
 
-  /** Da chiamare a fine frame: azzera i tasti "appena premuti". */
   endFrame() {
     this.pressed.clear();
   },
