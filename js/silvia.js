@@ -105,17 +105,40 @@ CHARACTERS.push({
 });
 
 class MustardJarEffect {
-  constructor(player) {
+  constructor(player, currentGame) {
+    this.game = currentGame;
     this.facing = player.facing;
     this.x = player.facing === 1 ? player.x + player.w + 3 : player.x - 30;
     this.y = player.y - 2;
     this.vx = player.facing * 8.5;
     this.life = 42;
     this.dead = false;
+    this.w = SPRITES.mustardJar[0].length * 2;
+    this.h = SPRITES.mustardJar.length * 2;
+    this.hitZombieIds = new Set();
+  }
+
+  get hitbox() {
+    return { x: this.x, y: this.y, w: this.w, h: this.h };
   }
 
   update() {
     this.x += this.vx;
+
+    for (const zombie of this.game.zombies) {
+      if (zombie.dead || this.hitZombieIds.has(zombie)) continue;
+      if (!rectsOverlap(this.hitbox, zombie.hitbox)) continue;
+
+      this.hitZombieIds.add(zombie);
+      zombie.hp = 0;
+      zombie.dead = true;
+      this.game.superActive = true;
+      this.game.registerKill(zombie);
+      this.game.superActive = false;
+      this.game.spawnImpact(zombie.x + zombie.w / 2, zombie.y + zombie.h / 2);
+      this.game.screenShake = Math.max(this.game.screenShake, 8);
+    }
+
     this.life--;
     if (this.life <= 0 || this.x < -40 || this.x > GAME_W + 40) this.dead = true;
   }
@@ -169,25 +192,9 @@ Player.prototype.addSuperCharge = function (amount) {
 Player.prototype.activateSilviaSuper = function (currentGame) {
   this.superCharge = 0;
   this.superReadyFlash = 0;
-  currentGame.superActive = true;
-  currentGame.mustardEffects.push(new MustardJarEffect(this));
+  currentGame.mustardEffects.push(new MustardJarEffect(this, currentGame));
   currentGame.screenShake = 20;
   currentGame.texts.push(new FloatingText(this.x + this.w / 2, this.y - 18, "SENAPE!", "#ffe14f"));
-
-  const victims = currentGame.zombies.filter((zombie) => {
-    if (zombie.dead) return false;
-    const zombieCenter = zombie.x + zombie.w / 2;
-    const playerCenter = this.x + this.w / 2;
-    return this.facing === 1 ? zombieCenter > playerCenter : zombieCenter < playerCenter;
-  });
-
-  victims.forEach((zombie) => {
-    zombie.hp = 0;
-    zombie.dead = true;
-    currentGame.registerKill(zombie);
-  });
-
-  currentGame.superActive = false;
 };
 
 const baseTakeDamage = Zombie.prototype.takeDamage;
