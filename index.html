@@ -2,7 +2,14 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#c5c3b8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>Zombie Snack - Berto &amp; Tommen</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -10,11 +17,60 @@
     <main class="cabinet">
       <h1 class="cabinet__title">ZOMBIE SNACK</h1>
 
-      <div class="screen">
-        <!-- Il mondo di gioco ragiona in 320x180 "pixel di gioco", ma il canvas
-             ha una risoluzione reale 3 volte piu' alta (960x540): i pixel dei
-             personaggi restano quadrati e le scritte risultano nitide. -->
-        <canvas id="game" width="960" height="540"></canvas>
+      <div class="handheld">
+        <div class="handheld__bezel">
+          <div class="screen">
+            <!-- Il mondo di gioco ragiona in 320x180 "pixel di gioco", ma il canvas
+                 ha una risoluzione reale 3 volte piu' alta (960x540): i pixel dei
+                 personaggi restano quadrati e le scritte risultano nitide. -->
+            <canvas id="game" width="960" height="540"></canvas>
+          </div>
+          <p class="handheld__caption">DOT MATRIX WITH STEREO SOUND</p>
+        </div>
+
+        <!-- Comandi stile Game Boy: visibili sul telefono (vedi CSS).
+             data-action usa gli stessi nomi della tastiera (left, jump, ...). -->
+        <div id="touch-pad" class="touch-pad" aria-label="Comandi Game Boy">
+          <div class="gb-dpad" aria-label="Croce direzionale">
+            <button type="button" class="gb-dpad__btn gb-dpad__btn--up" data-action="up" aria-label="Salta"></button>
+            <button type="button" class="gb-dpad__btn gb-dpad__btn--left" data-action="left" aria-label="Sinistra"></button>
+            <span class="gb-dpad__nub" aria-hidden="true"></span>
+            <button type="button" class="gb-dpad__btn gb-dpad__btn--right" data-action="right" aria-label="Destra"></button>
+            <button type="button" class="gb-dpad__btn gb-dpad__btn--down" data-action="down" aria-label="Abbassati"></button>
+          </div>
+
+          <div class="gb-face">
+            <div class="gb-ab">
+              <div class="gb-ab__slot gb-ab__slot--b">
+                <button type="button" class="gb-round" data-action="attack" aria-label="Lancia">
+                  <span>B</span>
+                </button>
+                <span class="gb-ab__label">LANCIA</span>
+              </div>
+              <div class="gb-ab__slot gb-ab__slot--a">
+                <button type="button" class="gb-round" data-action="jump" aria-label="Salta">
+                  <span>A</span>
+                </button>
+                <span class="gb-ab__label">SALTA</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="gb-pills">
+            <button type="button" class="gb-pill" data-action="dodge">
+              <span class="gb-pill__key"></span>
+              <span class="gb-pill__name">SELECT</span>
+            </button>
+            <button type="button" class="gb-pill" data-action="pause">
+              <span class="gb-pill__key"></span>
+              <span class="gb-pill__name">START</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="gb-speaker" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
       </div>
 
       <section class="legend">

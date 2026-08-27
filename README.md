@@ -9,6 +9,8 @@ Nessuna installazione, nessuna dipendenza: si apre direttamente nel browser.
 2. Nella schermata iniziale scegli il personaggio con le frecce (o con un clic) e premi INVIO.
 3. Sopravvivi il piu' possibile eliminando gli zombie a colpi di oggetti lanciati.
 
+Sul **telefono** la pagina diventa una console portatile stile Game Boy: tocca un eroe per iniziare e usa la croce e i pulsanti A/B. Per provarlo dal cellulare, apri `index.html` dal telefono (es. dalla cartella OneDrive) oppure, dal computer, avvia un server locale e apri l'indirizzo Wi‑Fi nel browser del telefono.
+
 ## Personaggi
 
 | Personaggio | Arma            | Caratteristiche                                       |
@@ -29,6 +31,17 @@ Nessuna installazione, nessuna dipendenza: si apre direttamente nel browser.
 | `INVIO`         | Conferma / rigioca                         |
 | `ESC`           | Esci dalla partita: chiede conferma (`INVIO` per uscire, `ESC` per continuare) |
 
+### Telefono (stile Game Boy)
+
+| Pulsante        | Azione                                     |
+| --------------- | ------------------------------------------ |
+| Croce `←` `→`   | Muoviti                                    |
+| Croce `↑` / `A` | Salta (doppio salto)                       |
+| Croce `↓`       | Abbassati                                  |
+| `B`             | Lancia l'oggetto                           |
+| `SELECT`        | Schivata (in pausa: esci dalla partita)    |
+| `START`         | Pausa / continua                           |
+
 ## Regole
 
 - Hai **3 vite**. Toccare uno zombie ne fa perdere una (poi sei invulnerabile per ~1,5 s).
@@ -42,9 +55,9 @@ Nessuna installazione, nessuna dipendenza: si apre direttamente nel browser.
 
 ```
 index.html          pagina con il canvas e la legenda dei comandi
-css/style.css       stile "cabinato arcade" + pixel non sfocati
+css/style.css       stile cabinato (PC) e scocca Game Boy (telefono)
 js/sprites.js       sprite pixel art (mappe di caratteri) e palette dei personaggi
-js/input.js         lettura tastiera (tasto premuto vs. appena premuto)
+js/input.js         tastiera + pulsanti touch (stesse azioni)
 js/entities.js      classi Player, Zombie, Projectile, Particle, FloatingText
 js/game.js          stati di gioco, spawn, collisioni, punteggio, disegno
 ```

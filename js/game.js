@@ -111,15 +111,30 @@ const game = {
     this.state = "playing";
   },
 
+  /** Testo tastiera sul computer, testo touch sul telefono. */
+  hint(keyboardText, touchText) {
+    return Input.touch ? touchText : keyboardText;
+  },
+
+  canvasX(event) {
+    const rect = canvas.getBoundingClientRect();
+    return ((event.clientX - rect.left) / rect.width) * GAME_W;
+  },
+
   handleClick(event) {
+    const x = this.canvasX(event);
+
     if (this.state === "menu") {
-      // Converte le coordinate del mouse in coordinate interne del canvas.
-      const rect = canvas.getBoundingClientRect();
-      const x = ((event.clientX - rect.left) / rect.width) * GAME_W;
       this.selectedCharacter = x < GAME_W / 2 ? 0 : 1;
       this.startGame();
+    } else if (this.state === "paused") {
+      this.state = "playing";
+    } else if (this.state === "confirmQuit") {
+      if (x < GAME_W / 2) this.goToMenu();
+      else this.state = "playing";
     } else if (this.state === "gameover") {
-      this.goToMenu();
+      if (x < GAME_W / 2) this.startGame();
+      else this.goToMenu();
     }
   },
 
@@ -152,15 +167,15 @@ const game = {
         break;
       case "paused":
         if (Input.wasPressed("pause")) this.state = "playing";
-        if (Input.wasPressed("back")) this.state = "confirmQuit";
+        if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.state = "confirmQuit";
         break;
       case "confirmQuit":
-        if (Input.wasPressed("confirm")) this.goToMenu();
-        if (Input.wasPressed("back") || Input.wasPressed("pause")) this.state = "playing";
+        if (Input.wasPressed("confirm") || Input.wasPressed("jump") || Input.wasPressed("attack")) this.goToMenu();
+        if (Input.wasPressed("back") || Input.wasPressed("pause") || Input.wasPressed("dodge")) this.state = "playing";
         break;
       case "gameover":
-        if (Input.wasPressed("confirm")) this.startGame();
-        if (Input.wasPressed("back")) this.goToMenu();
+        if (Input.wasPressed("confirm") || Input.wasPressed("jump") || Input.wasPressed("attack")) this.startGame();
+        if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.goToMenu();
         break;
     }
   },
@@ -446,7 +461,11 @@ const game = {
 
     const blink = Math.floor(Date.now() / 400) % 2 === 0;
     if (blink) {
-      text("FRECCE PER SCEGLIERE - INVIO PER GIOCARE", GAME_W / 2, 151, { size: 8, align: "center", color: "#ffe066" });
+      text(this.hint("FRECCE PER SCEGLIERE - INVIO PER GIOCARE", "TOCCA UN EROE PER INIZIARE"), GAME_W / 2, 151, {
+        size: 8,
+        align: "center",
+        color: "#ffe066",
+      });
     }
     text(`RECORD: ${this.highscore}`, GAME_W / 2, 166, { size: 8, align: "center", color: "#a9c9a9" });
   },
@@ -455,8 +474,12 @@ const game = {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, GAME_W, GAME_H);
     text("PAUSA", GAME_W / 2, 70, { size: 16, align: "center", color: COLORS.accent });
-    text("P = CONTINUA", GAME_W / 2, 94, { size: 8, align: "center" });
-    text("ESC = ESCI DALLA PARTITA", GAME_W / 2, 106, { size: 8, align: "center", color: "#a9c9a9" });
+    text(this.hint("P = CONTINUA", "START O TOCCA = CONTINUA"), GAME_W / 2, 94, { size: 8, align: "center" });
+    text(this.hint("ESC = ESCI DALLA PARTITA", "SELECT = ESCI DALLA PARTITA"), GAME_W / 2, 106, {
+      size: 8,
+      align: "center",
+      color: "#a9c9a9",
+    });
   },
 
   drawConfirmQuit() {
@@ -465,14 +488,18 @@ const game = {
 
     // Riquadro della domanda
     ctx.fillStyle = "rgba(10,16,22,0.95)";
-    ctx.fillRect(48, 62, GAME_W - 96, 56);
+    ctx.fillRect(36, 58, GAME_W - 72, 64);
     ctx.strokeStyle = COLORS.accent;
     ctx.lineWidth = 1;
-    ctx.strokeRect(48.5, 62.5, GAME_W - 97, 55);
+    ctx.strokeRect(36.5, 58.5, GAME_W - 73, 63);
 
-    text("USCIRE DALLA PARTITA?", GAME_W / 2, 72, { size: 10, align: "center", color: COLORS.warn });
-    text("INVIO = SI", GAME_W / 2, 92, { size: 9, align: "center", color: COLORS.accent });
-    text("ESC = CONTINUA A GIOCARE", GAME_W / 2, 104, { size: 8, align: "center", color: "#a9c9a9" });
+    text("USCIRE DALLA PARTITA?", GAME_W / 2, 66, { size: 10, align: "center", color: COLORS.warn });
+    text(this.hint("INVIO = SI", "A O TOCCA SX = SI"), GAME_W / 2, 86, { size: 8, align: "center", color: COLORS.accent });
+    text(this.hint("ESC = CONTINUA A GIOCARE", "START O TOCCA DX = NO"), GAME_W / 2, 100, {
+      size: 8,
+      align: "center",
+      color: "#a9c9a9",
+    });
   },
 
   drawGameOver() {
@@ -485,7 +512,11 @@ const game = {
 
     const blink = Math.floor(Date.now() / 400) % 2 === 0;
     if (blink) {
-      text("INVIO = RIGIOCA    ESC = MENU", GAME_W / 2, 126, { size: 7, align: "center", color: "#ffe066" });
+      text(this.hint("INVIO = RIGIOCA    ESC = MENU", "A = RIGIOCA    SELECT = MENU"), GAME_W / 2, 126, {
+        size: 7,
+        align: "center",
+        color: "#ffe066",
+      });
     }
   },
 
