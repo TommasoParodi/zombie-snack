@@ -6,10 +6,10 @@ Nessuna installazione, nessuna dipendenza: si apre direttamente nel browser.
 ## Come giocare
 
 1. Apri il file `index.html` con un doppio clic (funziona con Chrome, Edge, Firefox).
-2. Nella schermata iniziale scegli il personaggio con le frecce (o con un clic) e premi INVIO.
+2. Nella schermata iniziale scorri il carosello dei personaggi con le frecce `←`/`→` (o toccando/cliccando ai lati dello schermo) e premi INVIO (o tocca al centro) per iniziare.
 3. Sopravvivi il piu' possibile eliminando gli zombie a colpi di oggetti lanciati.
 
-Sul **telefono** la pagina diventa una console portatile stile Game Boy: tocca un eroe per iniziare e usa la croce e i pulsanti A/B. Per provarlo dal cellulare, apri `index.html` dal telefono (es. dalla cartella OneDrive) oppure, dal computer, avvia un server locale e apri l'indirizzo Wi‑Fi nel browser del telefono.
+Sul **telefono** la pagina diventa una console portatile stile Game Boy: usa la croce per scorrere i personaggi, tocca al centro dello schermo o premi A per iniziare, poi gioca con croce e pulsanti A/B. Per provarlo dal cellulare, apri `index.html` dal telefono (es. dalla cartella OneDrive) oppure, dal computer, avvia un server locale e apri l'indirizzo Wi‑Fi nel browser del telefono.
 
 ## Personaggi
 
@@ -67,3 +67,7 @@ js/game.js          stati di gioco, spawn, collisioni, punteggio, disegno
 Aggiungi un oggetto all'array `CHARACTERS` in `js/sprites.js` con la sua palette e la
 configurazione del proiettile (`sprite`, `speed`, `gravity`, `damage`, `cooldown`, `bounces`).
 Se serve un nuovo oggetto da lanciare, disegnalo come mappa di caratteri in `SPRITES`.
+
+La schermata di selezione e' un carosello (un personaggio alla volta, con frecce e puntini di
+posizione): supporta automaticamente qualunque numero di voci in `CHARACTERS`, non serve toccare
+`js/game.js`.

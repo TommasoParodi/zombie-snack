@@ -125,8 +125,14 @@ const game = {
     const x = this.canvasX(event);
 
     if (this.state === "menu") {
-      this.selectedCharacter = x < GAME_W / 2 ? 0 : 1;
-      this.startGame();
+      // Lati dello schermo = scorri il carosello, centro = conferma la scelta.
+      if (CHARACTERS.length > 1 && x < GAME_W / 3) {
+        this.prevCharacter();
+      } else if (CHARACTERS.length > 1 && x > (GAME_W * 2) / 3) {
+        this.nextCharacter();
+      } else {
+        this.startGame();
+      }
     } else if (this.state === "paused") {
       this.state = "playing";
     } else if (this.state === "confirmQuit") {
@@ -181,9 +187,18 @@ const game = {
   },
 
   updateMenu() {
-    if (Input.wasPressed("left")) this.selectedCharacter = 0;
-    if (Input.wasPressed("right")) this.selectedCharacter = 1;
+    if (Input.wasPressed("left")) this.prevCharacter();
+    if (Input.wasPressed("right")) this.nextCharacter();
     if (Input.wasPressed("confirm") || Input.wasPressed("jump")) this.startGame();
+  },
+
+  /** Scorrimento circolare del carosello: funziona con qualunque numero di personaggi. */
+  prevCharacter() {
+    this.selectedCharacter = (this.selectedCharacter - 1 + CHARACTERS.length) % CHARACTERS.length;
+  },
+
+  nextCharacter() {
+    this.selectedCharacter = (this.selectedCharacter + 1) % CHARACTERS.length;
   },
 
   updatePlaying() {
@@ -425,35 +440,48 @@ const game = {
     ctx.fillStyle = "rgba(4,8,12,0.55)";
     ctx.fillRect(0, 0, GAME_W, GAME_H);
 
-    text("ZOMBIE SNACK", GAME_W / 2, 10, { size: 18, align: "center", color: COLORS.accent });
-    text("SCEGLI IL TUO EROE", GAME_W / 2, 32, { size: 9, align: "center", color: "#a9c9a9" });
+    text("ZOMBIE SNACK", GAME_W / 2, 8, { size: 16, align: "center", color: COLORS.accent });
+    text("SCEGLI IL TUO EROE", GAME_W / 2, 26, { size: 9, align: "center", color: "#a9c9a9" });
 
-    const cardW = 132;
-    const cardH = 96;
-    const cardY = 46;
+    // Carosello: una sola carta centrata, cosi' la schermata regge qualunque
+    // numero di personaggi in CHARACTERS senza dover stringere il layout.
+    const character = CHARACTERS[this.selectedCharacter];
+    const cardW = 150;
+    const cardH = 104;
+    const cardX = GAME_W / 2 - cardW / 2;
+    const cardY = 38;
+    const centerX = GAME_W / 2;
 
-    CHARACTERS.forEach((character, index) => {
-      const cardX = index === 0 ? 14 : GAME_W - 14 - cardW;
-      const centerX = cardX + cardW / 2;
-      const selected = this.selectedCharacter === index;
+    ctx.fillStyle = "rgba(124,232,124,0.16)";
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1);
 
-      ctx.fillStyle = selected ? "rgba(124,232,124,0.16)" : "rgba(0,0,0,0.45)";
-      ctx.fillRect(cardX, cardY, cardW, cardH);
-      ctx.strokeStyle = selected ? COLORS.accent : "#3a4450";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cardX + 0.5, cardY + 0.5, cardW - 1, cardH - 1);
+    // Personaggio ingrandito 3 volte (30x42 pixel di gioco)
+    drawSprite(ctx, SPRITES.hero, centerX - 15, cardY + 6, character.palette, false, 3);
 
-      // Personaggio ingrandito 3 volte (30x42 pixel di gioco)
-      drawSprite(ctx, SPRITES.hero, cardX + 20, cardY + 8, character.palette, false, 3);
+    // Oggetto che lancia, ingrandito 2 volte
+    const proj = character.projectile;
+    drawSprite(ctx, SPRITES[proj.sprite], cardX + cardW - 26, cardY + 20, proj.palette, false, 2);
 
-      // Oggetto che lancia, ingrandito 2 volte
-      const proj = character.projectile;
-      drawSprite(ctx, SPRITES[proj.sprite], cardX + 84, cardY + 24, proj.palette, false, 2);
+    text(character.name, centerX, cardY + 60, { size: 13, align: "center", color: COLORS.accent });
+    text(character.weapon, centerX, cardY + 77, { size: 8, align: "center", color: "#cfe3cf" });
+    text(character.description, centerX, cardY + 89, { size: 7, align: "center", color: "#8fa38f" });
 
-      text(character.name, centerX, cardY + 56, { size: 12, align: "center", color: selected ? COLORS.accent : COLORS.text });
-      text(character.weapon, centerX, cardY + 72, { size: 8, align: "center", color: "#cfe3cf" });
-      text(character.description, centerX, cardY + 84, { size: 7, align: "center", color: "#8fa38f" });
-    });
+    // Frecce del carosello e puntini di posizione: inutili (e nascosti) con un solo personaggio.
+    if (CHARACTERS.length > 1) {
+      text("<", cardX - 12, cardY + cardH / 2 - 6, { size: 14, align: "center", color: COLORS.accent });
+      text(">", cardX + cardW + 12, cardY + cardH / 2 - 6, { size: 14, align: "center", color: COLORS.accent });
+
+      const dotSpacing = 8;
+      const dotsY = cardY + cardH + 8;
+      const dotsStartX = centerX - ((CHARACTERS.length - 1) * dotSpacing) / 2;
+      CHARACTERS.forEach((_, index) => {
+        ctx.fillStyle = index === this.selectedCharacter ? COLORS.accent : "#3a4450";
+        ctx.fillRect(dotsStartX + index * dotSpacing - 1, dotsY, 3, 3);
+      });
+    }
 
     // Fascia scura in basso: tiene le scritte staccate dal terreno verde.
     ctx.fillStyle = "rgba(4,8,12,0.85)";
@@ -461,7 +489,7 @@ const game = {
 
     const blink = Math.floor(Date.now() / 400) % 2 === 0;
     if (blink) {
-      text(this.hint("FRECCE PER SCEGLIERE - INVIO PER GIOCARE", "TOCCA UN EROE PER INIZIARE"), GAME_W / 2, 151, {
+      text(this.hint("FRECCE PER SCEGLIERE - INVIO PER GIOCARE", "CROCE PER SCEGLIERE - A O TOCCA PER GIOCARE"), GAME_W / 2, 151, {
         size: 8,
         align: "center",
         color: "#ffe066",
