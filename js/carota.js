@@ -1,8 +1,9 @@
 // CAROTA: personaggio segreto. Non e' in CHARACTERS finche' non si sblocca inserendo,
 // nel menu (schermata iniziale), la sequenza SU SU GIU' SU SU con la croce/tastiera.
-// Una volta sbloccato resta disponibile per sempre (localStorage), il carosello lo
-// mostra da solo: non serve toccare updateMenu/drawMenu/prevCharacter/nextCharacter,
-// CHARACTERS.push() e' l'unica cosa che serve (vedi CLAUDE.md).
+// Lo sblocco NON e' persistente: vale solo per la sessione corrente (variabile in
+// memoria, non localStorage), va rifatto a ogni ricaricamento della pagina. Il
+// carosello mostra il nuovo personaggio da solo appena entra in CHARACTERS: non serve
+// toccare updateMenu/drawMenu/prevCharacter/nextCharacter (vedi CLAUDE.md).
 
 SPRITES.cidFile = [
   ".WWWWc..",
@@ -15,7 +16,6 @@ SPRITES.cidFile = [
   "........",
 ];
 
-const CAROTA_UNLOCK_KEY = "zombie-snack-carota-unlocked";
 const CAROTA_SEQUENCE = ["up", "up", "down", "up", "up"];
 
 const CAROTA_CHARACTER = {
@@ -37,18 +37,17 @@ const CAROTA_CHARACTER = {
   },
 };
 
-function carotaUnlocked() {
-  return localStorage.getItem(CAROTA_UNLOCK_KEY) === "1";
-}
+let carotaUnlockedFlag = false;
 
-// Sbloccato in una sessione precedente: compare nel carosello fin dall'avvio.
-if (carotaUnlocked()) CHARACTERS.push(CAROTA_CHARACTER);
+function carotaUnlocked() {
+  return carotaUnlockedFlag;
+}
 
 let carotaSecretBuffer = [];
 
 function unlockCarota() {
   if (carotaUnlocked()) return;
-  localStorage.setItem(CAROTA_UNLOCK_KEY, "1");
+  carotaUnlockedFlag = true;
   CHARACTERS.push(CAROTA_CHARACTER);
   game.carotaUnlockFlash = 150;
 }
