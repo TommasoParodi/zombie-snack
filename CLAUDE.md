@@ -102,7 +102,11 @@ suo raggio finche' resta attivo (`config.life`), un solo colpo a testa (tracciat
 (`js/luca90.js`): li' il proiettile e' anche "anchorato" all'auto come il pugno di Pruzzo, ma con
 un `Projectile.prototype.update`/`draw` dedicato (stesso schema del "whip" di Boledj in
 `boledj.js`) che lo ridisegna ogni frame come un rettangolo largo `reach` invece di un piccolo
-sprite fisso, per rappresentare un fascio di luce che copre un'area invece di un punto. L'azione logica resta `attack` (non "lancio"): l'input,
+sprite fisso, per rappresentare un fascio di luce che copre un'area invece di un punto. Stesso
+schema anche per `EB` (`js/eb.js`, riusa pero' lo sprite umanoide condiviso `hero`/`heroCrouch`/
+`heroJump` di Berto/Tommen, nessuna forma nuova): il suo telefono (`config.boomerang: true`) vola
+in avanti fino a `reach`, poi torna verso il proprietario invece di sparire, sempre con `pierce`
+per colpire chiunque incontri andata e ritorno. L'azione logica resta `attack` (non "lancio"): l'input,
 l'etichetta dei comandi (`index.html`) e la barra di ricarica sono generici, la differenza fra
 "lanciare" e "colpire" sta solo nella config del proiettile. Per aggiungere un personaggio: nuovo
 oggetto in `CHARACTERS` (+ nuovo/i sprite in `SPRITES` se serve una forma o un oggetto nuovo da
