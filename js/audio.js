@@ -1,73 +1,103 @@
 // Effetti sonori sintetici arcade: nessun file audio esterno.
-// L'AudioContext viene sbloccato alla prima interazione dell'utente, come richiesto dai browser mobile.
+// Il Web Audio viene sbloccato alla prima interazione e gli effetti aspettano
+// che l'AudioContext sia davvero RUNNING: cosi' il primo suono non viene perso.
 
 const AudioFX = {
   ctx: null,
   master: 0.14,
+  readyPromise: null,
 
   ensure() {
     if (!this.ctx) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return null;
+      if (!AudioContextClass) return Promise.resolve(null);
       this.ctx = new AudioContextClass();
     }
-    if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
-    return this.ctx;
+
+    if (this.ctx.state === "running") return Promise.resolve(this.ctx);
+    if (this.readyPromise) return this.readyPromise;
+
+    this.readyPromise = this.ctx
+      .resume()
+      .then(() => {
+        // Warm-up silenzioso: forza il percorso audio del browser a inizializzarsi
+        // durante la gesture dell'utente senza produrre un suono percepibile.
+        const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+        const source = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0;
+        source.buffer = buffer;
+        source.connect(gain);
+        gain.connect(this.ctx.destination);
+        source.start();
+        return this.ctx;
+      })
+      .catch(() => null)
+      .finally(() => {
+        this.readyPromise = null;
+      });
+
+    return this.readyPromise;
+  },
+
+  run(callback) {
+    this.ensure().then((ctx) => {
+      if (!ctx || ctx.state !== "running") return;
+      callback(ctx);
+    });
   },
 
   tone({ freq = 440, endFreq = freq, duration = 0.08, type = "square", volume = 0.35, delay = 0 }) {
-    const ctx = this.ensure();
-    if (!ctx) return;
+    this.run((ctx) => {
+      const start = ctx.currentTime + delay;
+      const end = start + duration;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
 
-    const start = ctx.currentTime + delay;
-    const end = start + duration;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(Math.max(20, freq), start);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), end);
 
-    osc.type = type;
-    osc.frequency.setValueAtTime(Math.max(20, freq), start);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), end);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.master * volume), start + Math.min(0.012, duration / 3));
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
 
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.master * volume), start + Math.min(0.012, duration / 3));
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(start);
-    osc.stop(end + 0.01);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(end + 0.01);
+    });
   },
 
   noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0 }) {
-    const ctx = this.ensure();
-    if (!ctx) return;
+    this.run((ctx) => {
+      const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+      const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
 
-    const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
-    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const gain = ctx.createGain();
+      const start = ctx.currentTime + delay;
+      const end = start + duration;
 
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    const gain = ctx.createGain();
-    const start = ctx.currentTime + delay;
-    const end = start + duration;
+      let output = source;
+      if (highpass > 0) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = "highpass";
+        filter.frequency.value = highpass;
+        source.connect(filter);
+        output = filter;
+      }
 
-    let output = source;
-    if (highpass > 0) {
-      const filter = ctx.createBiquadFilter();
-      filter.type = "highpass";
-      filter.frequency.value = highpass;
-      source.connect(filter);
-      output = filter;
-    }
-
-    gain.gain.setValueAtTime(this.master * volume, start);
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    output.connect(gain);
-    gain.connect(ctx.destination);
-    source.start(start);
-    source.stop(end + 0.01);
+      gain.gain.setValueAtTime(this.master * volume, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      output.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(start);
+      source.stop(end + 0.01);
+    });
   },
 
   jump() {
@@ -144,10 +174,12 @@ const AudioFX = {
   },
 };
 
-// Sblocca l'audio alla prima vera interazione senza alterare gesture o multitouch.
-const unlockAudio = () => AudioFX.ensure();
-window.addEventListener("pointerdown", unlockAudio, { once: true, passive: true });
-window.addEventListener("keydown", unlockAudio, { once: true, passive: true });
+// Sblocca e scalda l'audio alla prima vera interazione senza alterare gesture o multitouch.
+const unlockAudio = () => {
+  AudioFX.ensure();
+};
+window.addEventListener("pointerdown", unlockAudio, { once: true, passive: true, capture: true });
+window.addEventListener("keydown", unlockAudio, { once: true, passive: true, capture: true });
 
 // Hook non invasivi: audio.js e' caricato per ultimo e avvolge la logica gia' esistente.
 const baseAudioAttack = Player.prototype.attack;
