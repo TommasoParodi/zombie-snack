@@ -1,13 +1,11 @@
 // Effetti sonori sintetici arcade: nessun file audio esterno.
-// Il Web Audio viene sbloccato alla prima interazione. Prima di dichiararlo pronto
-// vengono inizializzati in silenzio TUTTI i tipi di sorgente usati dal gioco:
-// cosi' anche il primo effetto di ogni tipo non viene mangiato dai browser mobile.
+// Il Web Audio viene sbloccato alla prima interazione e gli effetti aspettano
+// che l'AudioContext sia davvero RUNNING: cosi' il primo suono non viene perso.
 
 const AudioFX = {
   ctx: null,
   master: 0.14,
   readyPromise: null,
-  primed: false,
 
   ensure() {
     if (!this.ctx) {
@@ -16,14 +14,22 @@ const AudioFX = {
       this.ctx = new AudioContextClass();
     }
 
-    if (this.ctx.state === "running" && this.primed) return Promise.resolve(this.ctx);
+    if (this.ctx.state === "running") return Promise.resolve(this.ctx);
     if (this.readyPromise) return this.readyPromise;
 
     this.readyPromise = this.ctx
       .resume()
-      .then(() => this.primeAll())
       .then(() => {
-        this.primed = true;
+        // Warm-up silenzioso minimale: sblocca il percorso audio durante la gesture
+        // senza tentare di pre-inizializzare tutte le forme d'onda (instabile su alcuni telefoni).
+        const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+        const source = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0;
+        source.buffer = buffer;
+        source.connect(gain);
+        gain.connect(this.ctx.destination);
+        source.start();
         return this.ctx;
       })
       .catch(() => null)
@@ -34,41 +40,9 @@ const AudioFX = {
     return this.readyPromise;
   },
 
-  primeAll() {
-    const ctx = this.ctx;
-    if (!ctx || ctx.state !== "running") return Promise.resolve();
-
-    const start = ctx.currentTime;
-    const silentGain = ctx.createGain();
-    silentGain.gain.value = 0;
-    silentGain.connect(ctx.destination);
-
-    // Prepara ogni forma d'onda che verra' usata dagli effetti.
-    ["square", "sawtooth", "triangle", "sine"].forEach((type, index) => {
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = 220 + index * 40;
-      osc.connect(silentGain);
-      osc.start(start);
-      osc.stop(start + 0.012);
-    });
-
-    // Prepara anche il percorso BufferSource/noise.
-    const buffer = ctx.createBuffer(1, Math.max(2, Math.floor(ctx.sampleRate * 0.012)), ctx.sampleRate);
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-    noise.connect(silentGain);
-    noise.start(start);
-    noise.stop(start + 0.012);
-
-    // Piccolissimo margine: alcuni telefoni dichiarano il context running un attimo
-    // prima che il percorso verso lo speaker sia effettivamente operativo.
-    return new Promise((resolve) => setTimeout(resolve, 35));
-  },
-
   run(callback) {
     this.ensure().then((ctx) => {
-      if (!ctx || ctx.state !== "running" || !this.primed) return;
+      if (!ctx || ctx.state !== "running") return;
       callback(ctx);
     });
   },
@@ -187,7 +161,6 @@ const AudioFX = {
   },
 
   hurt() {
-    // Piu' marcato degli impatti sugli zombie: deve essere impossibile confonderlo.
     this.tone({ freq: 260, endFreq: 62, duration: 0.22, type: "sawtooth", volume: 0.48 });
     this.noise({ duration: 0.11, volume: 0.3, highpass: 180 });
   },
@@ -206,11 +179,8 @@ const AudioFX = {
   },
 };
 
-// Sblocca e pre-inizializza TUTTI i percorsi audio alla prima vera interazione.
-// Listener passivi: non toccano gesture, pointer capture o multitouch.
-const unlockAudio = () => {
-  AudioFX.ensure();
-};
+// Sblocca l'audio alla prima vera interazione senza alterare gesture o multitouch.
+const unlockAudio = () => AudioFX.ensure();
 window.addEventListener("pointerdown", unlockAudio, { once: true, passive: true, capture: true });
 window.addEventListener("keydown", unlockAudio, { once: true, passive: true, capture: true });
 
