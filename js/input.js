@@ -59,9 +59,11 @@ const Input = {
       this.release(action);
     });
 
-    window.addEventListener("blur", () => {
-      this.down.clear();
-      this.pressed.clear();
+    const releaseAll = () => this.releaseAllTouchControls();
+    window.addEventListener("blur", releaseAll);
+    window.addEventListener("pagehide", releaseAll);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) releaseAll();
     });
 
     this.bindTouchPad();
@@ -77,33 +79,62 @@ const Input = {
     this.down.delete(action);
   },
 
+  releaseAllTouchControls() {
+    this.down.clear();
+    this.pressed.clear();
+    document.querySelectorAll("#touch-pad .is-held").forEach((button) => {
+      button.classList.remove("is-held");
+    });
+  },
+
   bindTouchPad() {
     const pad = document.getElementById("touch-pad");
     if (!pad) return;
+
+    // Evita selezione testo / menu contestuale da pressione prolungata su tutto il pad,
+    // comprese le label sotto i pulsanti.
+    pad.addEventListener("contextmenu", (event) => event.preventDefault());
+    pad.addEventListener("selectstart", (event) => event.preventDefault());
+    pad.addEventListener("dragstart", (event) => event.preventDefault());
 
     pad.querySelectorAll("[data-action]").forEach((button) => {
       const action = button.getAttribute("data-action");
 
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault();
-        button.setPointerCapture(event.pointerId);
+        try {
+          button.setPointerCapture(event.pointerId);
+        } catch (_) {
+          // Alcuni browser mobili possono rifiutare la capture: il fail-safe globale
+          // rilascera' comunque tutti i comandi se il puntatore viene perso.
+        }
         button.classList.add("is-held");
         this.press(action);
       });
 
       const stop = (event) => {
-        event.preventDefault();
+        if (event?.cancelable) event.preventDefault();
         button.classList.remove("is-held");
         this.release(action);
       };
 
       button.addEventListener("pointerup", stop);
       button.addEventListener("pointercancel", stop);
-      button.addEventListener("lostpointercapture", () => {
-        button.classList.remove("is-held");
-        this.release(action);
-      });
+      button.addEventListener("lostpointercapture", stop);
       button.addEventListener("contextmenu", (event) => event.preventDefault());
+    });
+
+    // Se il browser perde un pointerup per una gesture/long-press, questi eventi globali
+    // impediscono che un comando rimanga incastrato fino al tocco successivo.
+    window.addEventListener("pointerup", (event) => {
+      if (event.pointerType === "touch" || event.pointerType === "pen") {
+        this.releaseAllTouchControls();
+      }
+    });
+    window.addEventListener("pointercancel", (event) => {
+      if (event.pointerType === "touch" || event.pointerType === "pen") {
+        this.releaseAllTouchControls();
+      }
     });
   },
 
