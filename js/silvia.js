@@ -101,6 +101,9 @@ CHARACTERS.push({
     max: 100,
     hitCharge: 4,
     killBonus: 8,
+    // Danno (non insta-kill) inflitto al boss di fine livello quando lo colpisce (vedi
+    // MustardJarEffect.update() sotto e js/boss.js).
+    bossDamage: 35,
   },
 });
 
@@ -116,6 +119,8 @@ class MustardJarEffect {
     this.w = SPRITES.mustardJar[0].length * 2;
     this.h = SPRITES.mustardJar.length * 2;
     this.hitZombieIds = new Set();
+    this.bossDamage = player.character.super.bossDamage;
+    this.hitBoss = false;
   }
 
   get hitbox() {
@@ -136,6 +141,19 @@ class MustardJarEffect {
       this.game.registerKill(zombie);
       this.game.superActive = false;
       this.game.spawnImpact(zombie.x + zombie.w / 2, zombie.y + zombie.h / 2);
+      this.game.screenShake = Math.max(this.game.screenShake, 8);
+    }
+
+    // Boss: fuori da game.zombies (vedi js/boss.js), quindi controllato a parte. Danno
+    // parziale, non insta-kill come sugli zombie normali, per non risolvere il fight in un colpo.
+    const boss = this.game.boss;
+    if (boss && !this.hitBoss && !boss.dead && rectsOverlap(this.hitbox, boss.hitbox)) {
+      this.hitBoss = true;
+      this.game.superActive = true;
+      const killed = boss.takeDamage(this.bossDamage);
+      if (killed) this.game.registerKill(boss);
+      this.game.superActive = false;
+      this.game.spawnImpact(boss.x + boss.w / 2, boss.y + boss.h / 2);
       this.game.screenShake = Math.max(this.game.screenShake, 8);
     }
 
