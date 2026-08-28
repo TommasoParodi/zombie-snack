@@ -71,6 +71,17 @@ body {
   box-shadow: 0 0 26px rgba(124, 232, 124, 0.18), inset 0 0 30px #000;
 }
 
+.version-tag {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 9px;
+  font-family: "Courier New", Courier, monospace;
+  letter-spacing: 1px;
+  color: var(--neon-dim);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 canvas {
   display: block;
   /* Il canvas e' 960x540: fino a 960px viene mostrato 1:1, quindi nitidissimo. */
@@ -209,6 +220,16 @@ canvas {
     font-weight: bold;
     letter-spacing: 1.5px;
     color: #c9c4d8;
+  }
+
+  .version-tag {
+    margin: 2px 0 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 7px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #c9c4d8;
+    opacity: 0.6;
   }
 
   .screen {
@@ -443,7 +464,8 @@ canvas {
     border-radius: 10px;
   }
 
-  .handheld__caption {
+  .handheld__caption,
+  .version-tag {
     display: none;
   }
 

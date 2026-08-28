@@ -55,7 +55,9 @@ function text(str, x, y, { size = 8, color = COLORS.text, align = "left", shadow
 }
 
 const game = {
-  state: "menu", // "menu" | "playing" | "paused" | "settings" | "gameover"
+  // "splash" | "menu" | "playing" | "paused" | "confirmQuit" | "settings" | "enterName"
+  // | "levelClear" | "gameover"
+  state: "splash",
   selectedCharacter: 0,
   settingsCursor: 0,
   character: null,
@@ -80,6 +82,7 @@ const game = {
   init() {
     Input.init();
     this.buildScenery();
+    this.buildSplashZombies();
     canvas.addEventListener("click", (event) => this.handleClick(event));
     requestAnimationFrame(() => this.loop());
   },
@@ -95,6 +98,17 @@ const game = {
     this.tombstones = Array.from({ length: 6 }, (_, i) => ({
       x: 20 + i * 52 + Math.random() * 12,
       scale: Math.random() > 0.5 ? 2 : 1,
+    }));
+  },
+
+  /** Sagome di zombie decorative della splash, generate una sola volta: la posizione
+   * x si ricava a runtime da Date.now() (vedi drawSplash), qui solo i parametri fissi. */
+  buildSplashZombies() {
+    this.splashZombies = Array.from({ length: 5 }, () => ({
+      y: GROUND_Y - 14 + Math.random() * 4,
+      scale: Math.random() > 0.5 ? 2 : 1,
+      speed: 6 + Math.random() * 5,
+      offset: Math.random() * GAME_W,
     }));
   },
 
@@ -139,17 +153,26 @@ const game = {
     return ((event.clientY - rect.top) / rect.height) * GAME_H;
   },
 
-  /** Angolo cliccabile per aprire le impostazioni dal menu (vedi drawMenu). */
+  /** Angoli cliccabili dal menu (vedi drawMenu): impostazioni a destra, classifica a
+   * sinistra, stesso identico trattamento (rettangolo controllato prima del carosello). */
   OPTIONS_LABEL_RECT: { x: GAME_W - 56, y: 0, w: 56, h: 12 },
+  LEADERBOARD_LABEL_RECT: { x: 0, y: 0, w: 64, h: 12 },
 
   handleClick(event) {
     const x = this.canvasX(event);
 
-    if (this.state === "menu") {
+    if (this.state === "splash") {
+      this.state = "menu";
+    } else if (this.state === "menu") {
       const y = this.canvasY(event);
-      const r = this.OPTIONS_LABEL_RECT;
-      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+      const optionsRect = this.OPTIONS_LABEL_RECT;
+      if (x >= optionsRect.x && x <= optionsRect.x + optionsRect.w && y >= optionsRect.y && y <= optionsRect.y + optionsRect.h) {
         this.openSettings();
+        return;
+      }
+      const boardRect = this.LEADERBOARD_LABEL_RECT;
+      if (x >= boardRect.x && x <= boardRect.x + boardRect.w && y >= boardRect.y && y <= boardRect.y + boardRect.h) {
+        this.openLeaderboard();
         return;
       }
       // Lati dello schermo = scorri il carosello, centro = conferma la scelta.
@@ -162,6 +185,8 @@ const game = {
       }
     } else if (this.state === "settings") {
       this.closeSettings();
+    } else if (this.state === "leaderboard") {
+      this.closeLeaderboard();
     } else if (this.state === "paused") {
       this.state = "playing";
     } else if (this.state === "confirmQuit") {
@@ -194,6 +219,9 @@ const game = {
     if (this.screenShake > 0) this.screenShake--;
 
     switch (this.state) {
+      case "splash":
+        this.updateSplash();
+        break;
       case "menu":
         this.updateMenu();
         break;
@@ -202,6 +230,9 @@ const game = {
         break;
       case "settings":
         this.updateSettings();
+        break;
+      case "leaderboard":
+        this.updateLeaderboard();
         break;
       case "paused":
         if (Input.wasPressed("pause")) this.state = "playing";
@@ -225,12 +256,21 @@ const game = {
     }
   },
 
+  /** Qualunque azione (tastiera o pulsante volto/SELECT/START su touch) fa avanzare al
+   * menu: nessun timer automatico, la splash resta finche' non arriva un input. */
+  updateSplash() {
+    const actions = ["confirm", "jump", "attack", "dodge", "super", "back", "pause"];
+    if (actions.some((action) => Input.wasPressed(action))) this.state = "menu";
+  },
+
   updateMenu() {
     if (Input.wasPressed("left")) this.prevCharacter();
     if (Input.wasPressed("right")) this.nextCharacter();
     if (Input.wasPressed("confirm") || Input.wasPressed("jump")) this.startGame();
     // "back" (Esc/SELECT) non ha altro significato nel menu: qui apre le impostazioni.
     if (Input.wasPressed("back")) this.openSettings();
+    // "pause" (P/START) idem, mai usato nel menu: qui apre la classifica, simmetrico a "back".
+    if (Input.wasPressed("pause")) this.openLeaderboard();
   },
 
   openSettings() {
@@ -241,6 +281,26 @@ const game = {
   closeSettings() {
     Input.cancelCapture();
     this.state = "menu";
+  },
+
+  /** `leaderboardEntries` resta `null` finche' Scores.fetchTop() non risponde (mostra
+   * "CARICAMENTO..."), poi diventa un array (anche vuoto) — vedi drawLeaderboard. */
+  openLeaderboard() {
+    this.state = "leaderboard";
+    this.leaderboardEntries = null;
+    Scores.fetchTop(10).then((entries) => {
+      this.leaderboardEntries = entries;
+    });
+  },
+
+  closeLeaderboard() {
+    this.state = "menu";
+  },
+
+  updateLeaderboard() {
+    if (Input.wasPressed("back") || Input.wasPressed("pause") || Input.wasPressed("confirm") || Input.wasPressed("jump")) {
+      this.closeLeaderboard();
+    }
   },
 
   /** Righe della schermata impostazioni: azioni da tastiera su desktop, pulsanti volto su
@@ -578,11 +638,16 @@ const game = {
 
     this.drawBackground();
 
-    if (this.state === "menu") {
+    if (this.state === "splash") {
+      // Niente partita in corso sotto: ramo a se' come menu/settings.
+      this.drawSplash();
+    } else if (this.state === "menu") {
       this.drawMenu();
     } else if (this.state === "settings") {
       // Niente partita in corso sotto: ramo a se' invece che annidato come paused/confirmQuit.
       this.drawSettings();
+    } else if (this.state === "leaderboard") {
+      this.drawLeaderboard();
     } else {
       this.drawWorld();
       this.drawHud();
@@ -684,6 +749,35 @@ const game = {
     ctx.fillRect(5, GAME_H - 7, 38 * (1 - cd), 2);
   },
 
+  /** Schermata iniziale stile arcade, mostrata prima del menu: logo pulsante, sagome di
+   * zombie che si trascinano sullo sfondo (SPRITES.zombie zombie riusato come silhouette
+   * via drawSpriteTinted, nessuno sprite nuovo) e prompt lampeggiante. Nessun contatore di
+   * frame dedicato: posizione x e pulsazione del titolo si ricavano da Date.now(), stesso
+   * idioma stateless gia' usato dal blink di drawMenu qui sotto. */
+  drawSplash() {
+    ctx.fillStyle = "rgba(4,8,12,0.35)";
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    const silhouette = "#0c140f";
+    for (const zombie of this.splashZombies) {
+      const span = GAME_W + 24;
+      const x = (((Date.now() / 1000) * zombie.speed + zombie.offset) % span) - 12;
+      drawSpriteTinted(ctx, SPRITES.zombie, x, zombie.y, silhouette, false, zombie.scale);
+    }
+
+    const pulse = 28 + Math.sin(Date.now() / 260) * 1.5;
+    text("ZOMBIE SNACK", GAME_W / 2, 62, { size: pulse, align: "center", color: COLORS.accent });
+
+    const blink = Math.floor(Date.now() / 400) % 2 === 0;
+    if (blink) {
+      text(this.hint("PREMI UN TASTO", "TOCCA LO SCHERMO"), GAME_W / 2, 120, {
+        size: 9,
+        align: "center",
+        color: "#ffe066",
+      });
+    }
+  },
+
   drawMenu() {
     // Velo scuro per staccare il menu dallo sfondo del cimitero.
     ctx.fillStyle = "rgba(4,8,12,0.55)";
@@ -692,9 +786,10 @@ const game = {
     text("ZOMBIE SNACK", GAME_W / 2, 8, { size: 16, align: "center", color: COLORS.accent });
     text("SCEGLI IL TUO EROE", GAME_W / 2, 26, { size: 9, align: "center", color: "#a9c9a9" });
 
-    // Angolo cliccabile (vedi OPTIONS_LABEL_RECT in handleClick) per aprire le impostazioni
-    // anche senza tastiera: su desktop e' comunque raggiungibile con Esc.
+    // Angoli cliccabili (vedi OPTIONS_LABEL_RECT/LEADERBOARD_LABEL_RECT in handleClick):
+    // su desktop entrambi raggiungibili anche solo da tastiera (Esc / P).
     text(this.hint("ESC = OPZIONI", "OPZIONI ▸"), GAME_W - 4, 3, { size: 6, align: "right", color: "#6f8a6f" });
+    text(this.hint("P = CLASSIFICA", "◂ CLASSIFICA"), 4, 3, { size: 6, align: "left", color: "#6f8a6f" });
 
     // Carosello: una sola carta centrata, cosi' la schermata regge qualunque
     // numero di personaggi in CHARACTERS senza dover stringere il layout.
@@ -749,6 +844,46 @@ const game = {
       });
     }
     text(`RECORD: ${this.highscore}`, GAME_W / 2, 166, { size: 8, align: "center", color: "#a9c9a9" });
+  },
+
+  /** Migliori 10 punteggi (Scores.fetchTop, vedi js/scores.js): stesso pannello scuro con
+   * bordo verde di drawSettings, ma niente cursore/rimappatura, solo una lista statica.
+   * `leaderboardEntries` e' null finche' la fetch (Firestore o fallback localStorage) non
+   * risponde: si mostra "CARICAMENTO..." nel frattempo invece di una lista vuota. */
+  drawLeaderboard() {
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    ctx.fillStyle = "rgba(10,16,22,0.95)";
+    ctx.fillRect(30, 14, GAME_W - 60, GAME_H - 44);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30.5, 14.5, GAME_W - 61, GAME_H - 45);
+
+    text("CLASSIFICA", GAME_W / 2, 20, { size: 12, align: "center", color: COLORS.accent });
+
+    const entries = this.leaderboardEntries;
+    if (entries === null) {
+      text("CARICAMENTO...", GAME_W / 2, 90, { size: 9, align: "center", color: "#a9c9a9" });
+    } else if (entries.length === 0) {
+      text("NESSUN PUNTEGGIO ANCORA", GAME_W / 2, 90, { size: 9, align: "center", color: "#a9c9a9" });
+    } else {
+      const rowH = 12;
+      const listTop = 38;
+      entries.forEach((entry, index) => {
+        const y = listTop + index * rowH;
+        const rankColor = index < 3 ? COLORS.accent : COLORS.text;
+        text(`${index + 1}.`, 44, y, { size: 8, align: "left", color: rankColor });
+        text(entry.nickname || "---", 62, y, { size: 8, align: "left", color: rankColor });
+        text(String(entry.score), GAME_W - 44, y, { size: 8, align: "right", color: rankColor });
+      });
+    }
+
+    text(this.hint("ESC/P = INDIETRO", "TOCCA PER TORNARE"), GAME_W / 2, GAME_H - 14, {
+      size: 7,
+      align: "center",
+      color: "#a9c9a9",
+    });
   },
 
   /** Lista scorrevole di righe rimappabili (azioni da tastiera su desktop, pulsanti volto su

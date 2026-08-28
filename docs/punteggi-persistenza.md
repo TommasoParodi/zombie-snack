@@ -8,8 +8,9 @@ mano che si evolve (vedi "Note per il futuro").
 Alla fine di ogni partita (non solo sui nuovi record) il giocatore puo' inserire un nickname
 opzionale di massimo 3 caratteri alfanumerici, stile arcade classico (si "cicla" ogni casella con
 sinistra/destra tra spazio/0-9/A-Z), e salvare il proprio punteggio in un archivio persistente,
-sempre in append: nessuna entry precedente viene mai persa o sovrascritta. I punteggi non sono
-ancora visualizzati in game — leggerli per mostrare una leaderboard e' un lavoro futuro.
+sempre in append: nessuna entry precedente viene mai persa o sovrascritta. Dal menu (tasto `P` su
+desktop, START su touch) si apre una schermata "CLASSIFICA" coi primi 10 punteggi (vedi
+"Leggere la classifica" piu' sotto).
 
 ## Percorso decisionale (perche' Firestore e non altro)
 
@@ -34,8 +35,11 @@ index.html               <script> Firebase SDK (build "compat", da CDN) + js/fir
 js/firebase-config.js     configurazione del progetto Firebase (valori segnaposto finche' non
                           viene creato un progetto reale — vedi sotto)
 js/scores.js              modulo Scores: Scores.save(entry) scrive un documento nella collection
-                          Firestore "scores"; se fallisce, fallback silenzioso su localStorage
-js/game.js                nuovo stato di gioco "enterName" (vedi sotto)
+                          Firestore "scores"; Scores.fetchTop(n) legge i migliori n ordinati per
+                          punteggio; entrambi con fallback silenzioso su localStorage se Firestore
+                          non risponde (offline, config segnaposto, security rules non allargate)
+js/game.js                stati di gioco "enterName" (vedi sotto) e "leaderboard" (schermata
+                          classifica, raggiungibile dal menu con l'azione "pause")
 ```
 
 Nessuna build, nessun bundler, nessuna dipendenza npm: le build "compat" di Firebase sono pensate
@@ -75,15 +79,18 @@ service cloud.firestore {
                     && request.resource.data.score >= 0
                     && request.resource.data.kills is number
                     && request.resource.data.kills >= 0;
-      allow read, update, delete: if false;
+      allow read: if true;
+      allow update, delete: if false;
     }
   }
 }
 ```
 
-Permettono solo la **creazione** di documenti con forma valida; lettura/modifica/cancellazione
-sono bloccate (non serve ancora leggere, la leaderboard non esiste). Vanno allargate quando si
-costruira' la schermata che mostra i punteggi.
+Permettono la **creazione** di documenti con forma valida e la **lettura** libera (serve alla
+schermata classifica, vedi sotto); modifica/cancellazione restano bloccate. **Chi ha gia' un
+progetto Firebase configurato con le regole precedenti (`allow read: if false`) deve aggiornarle
+manualmente nella Console Firebase** (Firestore Database -> Regole) perche' la classifica mostri i
+punteggi globali invece del solo fallback locale — vedi "Leggere la classifica" sotto.
 
 ## Schema del documento Firestore (`scores/{id}`)
 
@@ -122,17 +129,37 @@ Controlli (stesse azioni logiche gia' esistenti in `Input`, nessun nuovo tasto/a
 Il vecchio record (`HIGHSCORE_KEY` in `localStorage`, mostrato in HUD/menu) resta invariato e
 indipendente da questa feature.
 
+## Nuovo stato di gioco "leaderboard" (leggere la classifica)
+
+Raggiungibile solo dal menu iniziale, mai da altre schermate: azione `pause` (tasto `P` su
+desktop, pulsante START su touch — entrambi liberi nel menu, nessun altro significato li' e mai
+rimappabili, stesso principio del `back`/Esc che apre le impostazioni). Simmetrico all'angolo
+"OPZIONI" gia' esistente: un secondo angolo cliccabile in alto a sinistra
+(`game.LEADERBOARD_LABEL_RECT` in `js/game.js`) apre la stessa schermata anche col mouse/tocco.
+
+`game.openLeaderboard()` imposta `game.state = "leaderboard"` e lancia
+`Scores.fetchTop(10)` (fire-and-forget, come `Scores.save`): finche' la Promise non risponde,
+`game.leaderboardEntries` resta `null` e `drawLeaderboard()` mostra "CARICAMENTO...". `back`,
+`pause`, `confirm`/`jump` o un click qualsiasi chiudono la schermata (`closeLeaderboard()`) e
+tornano al menu, nessun salvataggio coinvolto (e' solo lettura).
+
+`Scores.fetchTop(limit)` prova prima Firestore (`orderBy("score","desc").limit(limit)`); se fallisce
+(offline, config segnaposto, o le security rules non permettono ancora `read` — vedi sopra) ricade
+sugli stessi punteggi salvati in locale (`localStorage`, chiave `zombie-snack-scores`), ordinati
+lato client. Per questo la classifica funziona "out of the box" anche senza un progetto Firebase
+reale, ma in quel caso mostra solo i punteggi fatti su quel browser, non quelli globali.
+
 ## Limiti noti
 
 - **Nessuna autenticazione**: chiunque conosca l'app puo' scrivere punteggi via console del
   browser, bypassando il gioco vero. Le security rules validano solo la *forma* dei dati (tipi,
   lunghezza), non l'autenticita' di chi scrive. Limite accettato per un archivio punteggi casual
   senza login.
-- I punteggi non sono ancora letti/mostrati da nessuna parte del gioco.
-- Se `js/firebase-config.js` ha ancora i valori segnaposto (progetto non creato), ogni salvataggio
-  fallisce silenziosamente e finisce in `localStorage` (chiave `zombie-snack-scores`) — comodo per
-  sviluppare/testare il flusso "enterName" senza un progetto Firebase reale, ma i punteggi in quel
-  caso restano locali al browser.
+- Se `js/firebase-config.js` ha ancora i valori segnaposto (progetto non creato), ogni
+  salvataggio/lettura fallisce silenziosamente e usa `localStorage` (chiave
+  `zombie-snack-scores`) — comodo per sviluppare/testare i flussi "enterName"/"leaderboard" senza
+  un progetto Firebase reale, ma i punteggi in quel caso restano locali al browser (non condivisi
+  con nessun altro giocatore).
 
 ## Stato di avanzamento
 
@@ -141,16 +168,18 @@ indipendente da questa feature.
 - [x] Modulo `js/scores.js` (Firestore + fallback localStorage) implementato.
 - [x] `js/firebase-config.js` con valori segnaposto, script aggiunti a `index.html`.
 - [x] Documentazione (questo file) e aggiornamento `CLAUDE.md`.
+- [x] Stato di gioco `leaderboard` (schermata classifica, `Scores.fetchTop`) implementato in
+      `js/game.js`.
 - [ ] Creazione del progetto Firebase reale e compilazione di `js/firebase-config.js` (passo
       manuale, da fare dall'utente).
+- [ ] Allargamento delle security rules del progetto Firebase reale per permettere `read` sulla
+      collection `scores` (passo manuale in Console Firebase, vedi sezione "Security rules
+      consigliate" — senza questo la classifica mostra solo i punteggi salvati localmente).
 - [ ] Verifica end-to-end con progetto Firebase reale (vedi checklist di test nel piano di
       implementazione).
 
 ## Note per il futuro
 
-- Leggere i punteggi per una splashscreen/leaderboard: query tipo
-  `db.collection("scores").orderBy("score", "desc").limit(10).get()`; richiedera' di allargare le
-  security rules per permettere `read`.
 - Eventuale hit-testing del mouse per lo stato "enterName" (oggi il click non fa nulla in quello
   stato, solo D-pad/tastiera funzionano — scelta deliberata per semplicita').
 - Eventuale autenticazione anonima Firebase se lo spam di punteggi falsi diventasse un problema

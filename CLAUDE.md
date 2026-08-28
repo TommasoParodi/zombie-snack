@@ -28,7 +28,7 @@ js/input.js             2) Input: astrae tastiera + touch dietro azioni logiche 
 js/entities.js          3) costanti mondo di gioco, classi Player/Projectile/Zombie/Particle/FloatingText
 js/boss.js              3.4) classe Boss + bossConfigForLevel(level) — entita' di fine livello,
                         riusa SPRITES.zombie/drawSprite, entita' core non un monkeypatch
-js/scores.js            3.5) modulo `Scores`: salva i punteggi su Firestore (fallback localStorage)
+js/scores.js            3.5) modulo `Scores`: salva/legge i punteggi su Firestore (fallback localStorage)
 js/game.js              4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
 js/audio.js             ultimo) moduli `AudioFX` (effetti sonori) e `Music` (musica di sottofondo
                         del livello, mute con M): tutto sintetico via Web Audio, nessun file audio
@@ -56,22 +56,29 @@ transform e ridisegna a risoluzione reale per restare nitido invece di scalare i
 `ctx.imageSmoothingEnabled = false` + CSS `image-rendering: pixelated` mantengono il look pixel-art.
 
 ### Macchina a stati del gioco
-`game.state` e' una stringa: `menu -> playing -> (paused | confirmQuit) -> enterName -> gameover ->
-menu`, con un ramo secondario `playing -> levelClear -> (playing [livello successivo] | menu)` per
-il sistema di livelli (vedi sezione dedicata sotto). Lo stato `enterName` si inserisce tra la morte
-del giocatore (`endGame()`) e la normale schermata di game over: mostra un selettore di nickname
-stile arcade a 3 caselle (`updateEnterName`/`drawEnterName`, costante `NAME_CHARSET`), poi salva il
-punteggio (o lo salta) tramite `Scores.save()` (vedi `js/scores.js` e
+`game.state` e' una stringa: `splash -> menu -> playing -> (paused | confirmQuit) -> enterName ->
+gameover -> menu`, con un ramo secondario `playing -> levelClear -> (playing [livello successivo] |
+menu)` per il sistema di livelli (vedi sezione dedicata sotto). Lo stato iniziale e' `splash` (non
+`menu`): schermata di apertura stile arcade con logo pulsante e sagome di zombie decorative
+(`updateSplash`/`drawSplash`, `game.buildSplashZombies()` chiamata una sola volta da `init()`),
+che avanza al menu su **qualunque** azione o click — nessun timer automatico. Lo stato `enterName`
+si inserisce tra la morte del giocatore (`endGame()`) e la normale schermata di game over: mostra
+un selettore di nickname stile arcade a 3 caselle (`updateEnterName`/`drawEnterName`, costante
+`NAME_CHARSET`), poi salva il punteggio (o lo salta) tramite `Scores.save()` (vedi `js/scores.js` e
 `docs/punteggi-persistenza.md`) prima di passare a `"gameover"`. **`enterName`/`gameover` restano
 riservati alla sola morte del giocatore**: il sistema di livelli non li tocca mai, anche quando la
-run continua per molti livelli. `game.update()` fa uno switch sullo stato e delega a
-`updateMenu()`/`updatePlaying()`/`updateEnterName()`/`updateSettings()`/inline per gli altri;
-`game.draw()` fa lo stesso per il disegno (`drawMenu`, `drawSettings`, `drawWorld`+`drawHud`,
-`drawPause`, `drawConfirmQuit`, `drawEnterName`, `drawLevelClear`, `drawGameOver`). Aggiungere un
-nuovo stato = aggiungere un case in entrambi gli switch, piu' l'eventuale funzione `drawX`/`updateX`.
-Lo stato `settings` (schermata di mapping tasti/pulsanti, raggiungibile solo dal menu — vedi
-sezione dedicata sotto "Input astratto per azione, non per tasto") e' l'unico, oltre a `menu`, a
-non passare da `drawWorld`/`drawHud`.
+run continua per molti livelli. Lo stato `leaderboard` (schermata "CLASSIFICA", raggiungibile solo
+dal menu con l'azione `pause` — tasto `P`/START, libera li' — o cliccando l'angolo in alto a
+sinistra, simmetrico a `OPTIONS_LABEL_RECT`) mostra i primi 10 punteggi via `Scores.fetchTop()`,
+fire-and-forget come `Scores.save()`: `game.leaderboardEntries` resta `null` (mostra
+"CARICAMENTO...") finche' la Promise non risponde. `game.update()` fa uno switch sullo stato e
+delega a `updateSplash()`/`updateMenu()`/`updatePlaying()`/`updateEnterName()`/`updateSettings()`/
+`updateLeaderboard()`/inline per gli altri; `game.draw()` fa lo stesso per il disegno (`drawSplash`,
+`drawMenu`, `drawSettings`, `drawLeaderboard`, `drawWorld`+`drawHud`, `drawPause`,
+`drawConfirmQuit`, `drawEnterName`, `drawLevelClear`, `drawGameOver`). Aggiungere un nuovo stato =
+aggiungere un case in entrambi gli switch, piu' l'eventuale funzione `drawX`/`updateX`. Gli stati
+`splash`/`menu`/`settings`/`leaderboard` sono gli unici a non passare da `drawWorld`/`drawHud`
+(nessuna partita in corso sotto).
 
 ### Game loop
 `requestAnimationFrame` ricorsivo in `game.loop()`: `update()` -> `draw()` -> `Input.endFrame()`.
@@ -142,6 +149,20 @@ Tre dettagli non ovvi:
   quindi si puo' letteralmente ciclare il mapping del pulsante A mentre lo si tiene premuto:
   ri-risolvere l'azione al `pointerup` rilascerebbe l'azione nuova invece di quella con cui e'
   partito il `press()`, lasciandone una bloccata a "giu'" per sempre.
+- **Le etichette tasto/pulsante mostrate fuori dalla schermata impostazioni non si aggiornano
+  da sole**: sono testo statico ovunque, tranne dove un `data-*` le lega esplicitamente alla
+  mappa viva e un `syncXLabels()` le riscrive. Pattern gia' in uso in due punti: i pulsanti
+  volto touch (`[data-slot-label]` in `index.html` -> `Input.syncTouchLabels()`, legge
+  `TOUCH_MAP`) e la legenda comandi desktop (`[data-legend-key="azione"]` sui `<kbd>` della
+  sezione `.legend` -> `Input.syncLegendLabels()`, legge `KEY_MAP` via `keyLabelFor`).
+  Entrambe vanno richiamate a `Input.init()` (mappa ripristinata da `localStorage`) e ad ogni
+  scrittura della relativa mappa (`applyRebind`/`resetKeyMap` per la tastiera,
+  `cycleTouchSlot`/`resetTouchMap` per il touch): dimenticare una di queste chiamate lascia
+  un'etichetta "di fabbrica" visibile anche dopo che l'azione e' stata rimappata altrove.
+  Aggiungere un nuovo posto in cui un tasto/pulsante e' mostrato per nome = aggiungere il
+  `data-*` corrispondente li' e includerlo nel sync esistente (o scriverne uno nuovo con lo
+  stesso schema), mai stampare `codeToLabel`/`ACTION_LABELS` una tantum in un punto che poi non
+  viene piu' toccato da un remap.
 
 ### Sprite come mappe di caratteri
 Ogni sprite in `SPRITES` (`sprites.js`) e' un array di stringhe: un carattere = un pixel, `.` =
@@ -298,7 +319,10 @@ l'iterazione.
 ### Punteggio, combo, persistenza
 Punti a tempo (1/secondo) + punti a uccisione moltiplicati dal combo (`registerKill` in `game.js`,
 combo max x5, scade con `comboTimer`). High score in `localStorage` (chiave `HIGHSCORE_KEY`),
-letto/scritto solo in `game.js`.
+letto/scritto solo in `game.js`. Punteggi globali (nickname + score, un documento per run,
+mai sovrascritti) su Firestore via `Scores.save()`/`Scores.fetchTop()` (`js/scores.js`, fallback
+silenzioso su `localStorage` se Firestore non risponde): vedi `docs/punteggi-persistenza.md` e lo
+stato `leaderboard` sopra.
 
 ### Effetti sonori (js/audio.js)
 `AudioFX` sintetizza tutto con Web Audio (`tone()` = oscillatore con pitch-bend esponenziale,

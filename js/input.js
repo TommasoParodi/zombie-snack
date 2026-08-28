@@ -149,6 +149,7 @@ const Input = {
 
     this.bindTouchPad();
     this.preventPageScroll();
+    this.syncLegendLabels();
   },
 
   // ------------------------------------------------------- mapping tasti (schermata impostazioni)
@@ -180,6 +181,7 @@ const Input = {
     Object.keys(KEY_MAP).forEach((code) => delete KEY_MAP[code]);
     Object.assign(KEY_MAP, DEFAULT_KEY_MAP);
     localStorage.removeItem(KEYMAP_STORAGE_KEY);
+    this.syncLegendLabels();
   },
 
   resetTouchMap() {
@@ -194,6 +196,15 @@ const Input = {
     document.querySelectorAll("[data-slot-label]").forEach((el) => {
       const slot = el.getAttribute("data-slot-label");
       el.textContent = ACTION_LABELS[TOUCH_MAP[slot]];
+    });
+  },
+
+  /** Riscrive i tasti mostrati nella legenda desktop (index.html, [data-legend-key]) cosi'
+   * restano corretti dopo un remap invece di continuare a mostrare il tasto di fabbrica. */
+  syncLegendLabels() {
+    document.querySelectorAll("[data-legend-key]").forEach((el) => {
+      const action = el.getAttribute("data-legend-key");
+      el.textContent = this.keyLabelFor(action);
     });
   },
 
@@ -226,6 +237,7 @@ const Input = {
     delete KEY_MAP[code];
     KEY_MAP[code] = action;
     this.saveKeyMap();
+    this.syncLegendLabels();
   },
 
   /** Etichetta leggibile del tasto attualmente assegnato a un'azione ("—" se nessuno). */

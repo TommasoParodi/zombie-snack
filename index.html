@@ -25,6 +25,7 @@
             <canvas id="game" width="960" height="540"></canvas>
           </div>
           <p class="handheld__caption">DOT MATRIX WITH STEREO SOUND</p>
+          <p class="version-tag">v1.12.0</p>
         </div>
 
         <div id="touch-pad" class="touch-pad" aria-label="Comandi portatile">
@@ -75,7 +76,6 @@
               <span class="gb-pill__name">START</span>
             </button>
           </div>
-          <div style="position:absolute; left:50%; transform:translateX(-50%); bottom:9px; font:9px monospace; opacity:.42; letter-spacing:.4px; pointer-events:none;">1.12.0</div>
         </div>
 
         <div class="gb-speaker" aria-hidden="true">
@@ -86,14 +86,14 @@
       <section class="legend">
         <h2>Comandi</h2>
         <ul>
-          <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> <span>Muoviti</span></li>
-          <li><kbd>Spazio</kbd> <span>Salta (doppio salto)</span></li>
-          <li><kbd>&darr;</kbd> <span>Abbassati</span></li>
-          <li><kbd>X</kbd> <span>Scatto invulnerabile</span></li>
-          <li><kbd>F</kbd> <span>Attacca</span></li>
-          <li><kbd>Y</kbd> <span>Super (quando disponibile)</span></li>
-          <li><kbd>P</kbd> <span>Pausa</span></li>
-          <li><kbd>Esc</kbd> <span>Esci dalla partita (con conferma) / nel menu: impostazioni</span></li>
+          <li><kbd data-legend-key="left">&larr;</kbd> <kbd data-legend-key="right">&rarr;</kbd> <span>Muoviti</span></li>
+          <li><kbd data-legend-key="jump">Spazio</kbd> <span>Salta (doppio salto)</span></li>
+          <li><kbd data-legend-key="down">&darr;</kbd> <span>Abbassati</span></li>
+          <li><kbd data-legend-key="dodge">X</kbd> <span>Scatto invulnerabile</span></li>
+          <li><kbd data-legend-key="attack">F</kbd> <span>Attacca</span></li>
+          <li><kbd data-legend-key="super">Y</kbd> <span>Super (quando disponibile)</span></li>
+          <li><kbd data-legend-key="pause">P</kbd> <span>Pausa / nel menu: classifica</span></li>
+          <li><kbd data-legend-key="back">Esc</kbd> <span>Esci dalla partita (con conferma) / nel menu: impostazioni</span></li>
           <li><kbd>M</kbd> <span>Muta/riattiva la musica</span></li>
         </ul>
       </section>
@@ -120,6 +120,6 @@
     <script src="js/fabio.js"></script>
     <script src="js/dario.js"></script>
     <script src="js/menu-polish.js"></script>
-    <script src="js/audio.js?v=1.12.0"></script>
+    <script src="js/audio.js?v=1.14.0"></script>
   </body>
 </html>

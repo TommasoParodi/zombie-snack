@@ -431,6 +431,7 @@ game.update = function () {
   if (state === "paused" || state === "confirmQuit") AudioFX.menuOpen();
   else if (prevState === "paused" && state === "playing") AudioFX.menuClose();
   else if (prevState === "confirmQuit" && (state === "playing" || state === "menu")) AudioFX.menuClose();
+  else if (prevState === "splash" && state === "menu") AudioFX.select();
 };
 
 // Apertura/chiusura della schermata impostazioni: stesso blip di pausa/conferma-uscita.
@@ -444,6 +445,19 @@ const baseAudioCloseSettings = game.closeSettings.bind(game);
 game.closeSettings = function () {
   AudioFX.menuClose();
   baseAudioCloseSettings();
+};
+
+// Apertura/chiusura della classifica: stesso blip di impostazioni.
+const baseAudioOpenLeaderboard = game.openLeaderboard.bind(game);
+game.openLeaderboard = function () {
+  baseAudioOpenLeaderboard();
+  AudioFX.menuOpen();
+};
+
+const baseAudioCloseLeaderboard = game.closeLeaderboard.bind(game);
+game.closeLeaderboard = function () {
+  AudioFX.menuClose();
+  baseAudioCloseLeaderboard();
 };
 
 // Riscontro tattile per un rebind/reset riuscito, riusando i preset tone() esistenti
