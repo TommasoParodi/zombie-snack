@@ -1,11 +1,13 @@
 // Effetti sonori sintetici arcade: nessun file audio esterno.
-// Il Web Audio viene sbloccato alla prima interazione e gli effetti aspettano
-// che l'AudioContext sia davvero RUNNING: cosi' il primo suono non viene perso.
+// Il Web Audio viene sbloccato alla prima interazione. Prima di dichiararlo pronto
+// vengono inizializzati in silenzio TUTTI i tipi di sorgente usati dal gioco:
+// cosi' anche il primo effetto di ogni tipo non viene mangiato dai browser mobile.
 
 const AudioFX = {
   ctx: null,
   master: 0.14,
   readyPromise: null,
+  primed: false,
 
   ensure() {
     if (!this.ctx) {
@@ -14,22 +16,14 @@ const AudioFX = {
       this.ctx = new AudioContextClass();
     }
 
-    if (this.ctx.state === "running") return Promise.resolve(this.ctx);
+    if (this.ctx.state === "running" && this.primed) return Promise.resolve(this.ctx);
     if (this.readyPromise) return this.readyPromise;
 
     this.readyPromise = this.ctx
       .resume()
+      .then(() => this.primeAll())
       .then(() => {
-        // Warm-up silenzioso: forza il percorso audio del browser a inizializzarsi
-        // durante la gesture dell'utente senza produrre un suono percepibile.
-        const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
-        const source = this.ctx.createBufferSource();
-        const gain = this.ctx.createGain();
-        gain.gain.value = 0;
-        source.buffer = buffer;
-        source.connect(gain);
-        gain.connect(this.ctx.destination);
-        source.start();
+        this.primed = true;
         return this.ctx;
       })
       .catch(() => null)
@@ -40,9 +34,41 @@ const AudioFX = {
     return this.readyPromise;
   },
 
+  primeAll() {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== "running") return Promise.resolve();
+
+    const start = ctx.currentTime;
+    const silentGain = ctx.createGain();
+    silentGain.gain.value = 0;
+    silentGain.connect(ctx.destination);
+
+    // Prepara ogni forma d'onda che verra' usata dagli effetti.
+    ["square", "sawtooth", "triangle", "sine"].forEach((type, index) => {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = 220 + index * 40;
+      osc.connect(silentGain);
+      osc.start(start);
+      osc.stop(start + 0.012);
+    });
+
+    // Prepara anche il percorso BufferSource/noise.
+    const buffer = ctx.createBuffer(1, Math.max(2, Math.floor(ctx.sampleRate * 0.012)), ctx.sampleRate);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    noise.connect(silentGain);
+    noise.start(start);
+    noise.stop(start + 0.012);
+
+    // Piccolissimo margine: alcuni telefoni dichiarano il context running un attimo
+    // prima che il percorso verso lo speaker sia effettivamente operativo.
+    return new Promise((resolve) => setTimeout(resolve, 35));
+  },
+
   run(callback) {
     this.ensure().then((ctx) => {
-      if (!ctx || ctx.state !== "running") return;
+      if (!ctx || ctx.state !== "running" || !this.primed) return;
       callback(ctx);
     });
   },
@@ -108,6 +134,11 @@ const AudioFX = {
     this.tone({ freq: 620, endFreq: 760, duration: 0.035, type: "square", volume: 0.18 });
   },
 
+  select() {
+    this.tone({ freq: 520, endFreq: 700, duration: 0.07, type: "square", volume: 0.25 });
+    this.tone({ freq: 780, endFreq: 980, duration: 0.08, type: "square", volume: 0.22, delay: 0.07 });
+  },
+
   attack(characterId) {
     switch (characterId) {
       case "berto":
@@ -156,8 +187,9 @@ const AudioFX = {
   },
 
   hurt() {
-    this.tone({ freq: 210, endFreq: 70, duration: 0.18, type: "sawtooth", volume: 0.34 });
-    this.noise({ duration: 0.08, volume: 0.18, highpass: 250 });
+    // Piu' marcato degli impatti sugli zombie: deve essere impossibile confonderlo.
+    this.tone({ freq: 260, endFreq: 62, duration: 0.22, type: "sawtooth", volume: 0.48 });
+    this.noise({ duration: 0.11, volume: 0.3, highpass: 180 });
   },
 
   super(characterId) {
@@ -174,7 +206,8 @@ const AudioFX = {
   },
 };
 
-// Sblocca e scalda l'audio alla prima vera interazione senza alterare gesture o multitouch.
+// Sblocca e pre-inizializza TUTTI i percorsi audio alla prima vera interazione.
+// Listener passivi: non toccano gesture, pointer capture o multitouch.
 const unlockAudio = () => {
   AudioFX.ensure();
 };
@@ -232,4 +265,11 @@ const baseAudioNextCharacter = game.nextCharacter.bind(game);
 game.nextCharacter = function () {
   baseAudioNextCharacter();
   AudioFX.menu();
+};
+
+// Conferma della scelta: suono diverso dal semplice scorrimento del carosello.
+const baseAudioStartGame = game.startGame.bind(game);
+game.startGame = function () {
+  if (this.state === "menu") AudioFX.select();
+  baseAudioStartGame();
 };
