@@ -1,103 +1,96 @@
 // Effetti sonori sintetici arcade: nessun file audio esterno.
-// Il Web Audio viene sbloccato alla prima interazione e gli effetti aspettano
-// che l'AudioContext sia davvero RUNNING: cosi' il primo suono non viene perso.
+// Versione volutamente semplice: niente code/promesse nel percorso degli effetti.
+// Su mobile l'AudioContext viene creato/sbloccato direttamente durante la prima gesture.
 
 const AudioFX = {
   ctx: null,
   master: 0.14,
-  readyPromise: null,
 
   ensure() {
     if (!this.ctx) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return Promise.resolve(null);
+      if (!AudioContextClass) return null;
       this.ctx = new AudioContextClass();
     }
 
-    if (this.ctx.state === "running") return Promise.resolve(this.ctx);
-    if (this.readyPromise) return this.readyPromise;
+    if (this.ctx.state === "suspended") {
+      this.ctx.resume().catch(() => {});
+    }
 
-    this.readyPromise = this.ctx
-      .resume()
-      .then(() => {
-        // Warm-up silenzioso minimale: sblocca il percorso audio durante la gesture
-        // senza tentare di pre-inizializzare tutte le forme d'onda (instabile su alcuni telefoni).
-        const buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
-        const source = this.ctx.createBufferSource();
-        const gain = this.ctx.createGain();
-        gain.gain.value = 0;
-        source.buffer = buffer;
-        source.connect(gain);
-        gain.connect(this.ctx.destination);
-        source.start();
-        return this.ctx;
-      })
-      .catch(() => null)
-      .finally(() => {
-        this.readyPromise = null;
-      });
-
-    return this.readyPromise;
+    return this.ctx;
   },
 
-  run(callback) {
-    this.ensure().then((ctx) => {
-      if (!ctx || ctx.state !== "running") return;
-      callback(ctx);
-    });
+  unlock() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+
+    // Buffer silenzioso avviato dentro la gesture: e' il metodo piu' compatibile
+    // per sbloccare Web Audio su Safari/Chrome mobile senza ritardare gli effetti.
+    try {
+      const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      source.buffer = buffer;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start(0);
+    } catch (_) {}
   },
 
   tone({ freq = 440, endFreq = freq, duration = 0.08, type = "square", volume = 0.35, delay = 0 }) {
-    this.run((ctx) => {
-      const start = ctx.currentTime + delay;
-      const end = start + duration;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+    const ctx = this.ensure();
+    if (!ctx) return;
 
-      osc.type = type;
-      osc.frequency.setValueAtTime(Math.max(20, freq), start);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), end);
+    const start = ctx.currentTime + delay;
+    const end = start + duration;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
 
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.master * volume), start + Math.min(0.012, duration / 3));
-      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(20, freq), start);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), end);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(end + 0.01);
-    });
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.master * volume), start + Math.min(0.012, duration / 3));
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(end + 0.01);
   },
 
   noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0 }) {
-    this.run((ctx) => {
-      const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
-      const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    const ctx = this.ensure();
+    if (!ctx) return;
 
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      const gain = ctx.createGain();
-      const start = ctx.currentTime + delay;
-      const end = start + duration;
+    const length = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
 
-      let output = source;
-      if (highpass > 0) {
-        const filter = ctx.createBiquadFilter();
-        filter.type = "highpass";
-        filter.frequency.value = highpass;
-        source.connect(filter);
-        output = filter;
-      }
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    const start = ctx.currentTime + delay;
+    const end = start + duration;
 
-      gain.gain.setValueAtTime(this.master * volume, start);
-      gain.gain.exponentialRampToValueAtTime(0.0001, end);
-      output.connect(gain);
-      gain.connect(ctx.destination);
-      source.start(start);
-      source.stop(end + 0.01);
-    });
+    let output = source;
+    if (highpass > 0) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = highpass;
+      source.connect(filter);
+      output = filter;
+    }
+
+    gain.gain.setValueAtTime(this.master * volume, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    output.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(start);
+    source.stop(end + 0.01);
   },
 
   jump() {
@@ -109,8 +102,8 @@ const AudioFX = {
   },
 
   select() {
-    this.tone({ freq: 520, endFreq: 700, duration: 0.07, type: "square", volume: 0.25 });
-    this.tone({ freq: 780, endFreq: 980, duration: 0.08, type: "square", volume: 0.22, delay: 0.07 });
+    this.tone({ freq: 520, endFreq: 700, duration: 0.07, type: "square", volume: 0.28 });
+    this.tone({ freq: 780, endFreq: 980, duration: 0.08, type: "square", volume: 0.24, delay: 0.07 });
   },
 
   attack(characterId) {
@@ -161,8 +154,9 @@ const AudioFX = {
   },
 
   hurt() {
-    this.tone({ freq: 260, endFreq: 62, duration: 0.22, type: "sawtooth", volume: 0.48 });
-    this.noise({ duration: 0.11, volume: 0.3, highpass: 180 });
+    // Molto distinto dall'impatto sugli zombie.
+    this.tone({ freq: 300, endFreq: 58, duration: 0.24, type: "sawtooth", volume: 0.55 });
+    this.noise({ duration: 0.12, volume: 0.34, highpass: 180 });
   },
 
   super(characterId) {
@@ -179,12 +173,11 @@ const AudioFX = {
   },
 };
 
-// Sblocca l'audio alla prima vera interazione senza alterare gesture o multitouch.
-const unlockAudio = () => AudioFX.ensure();
-window.addEventListener("pointerdown", unlockAudio, { once: true, passive: true, capture: true });
-window.addEventListener("keydown", unlockAudio, { once: true, passive: true, capture: true });
+// Sblocco diretto durante la gesture. Listener passivi: non interferiscono col multitouch.
+window.addEventListener("pointerdown", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
+window.addEventListener("touchstart", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
+window.addEventListener("keydown", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
 
-// Hook non invasivi: audio.js e' caricato per ultimo e avvolge la logica gia' esistente.
 const baseAudioAttack = Player.prototype.attack;
 Player.prototype.attack = function (currentGame) {
   baseAudioAttack.call(this, currentGame);
@@ -237,9 +230,11 @@ game.nextCharacter = function () {
   AudioFX.menu();
 };
 
-// Conferma della scelta: suono diverso dal semplice scorrimento del carosello.
-const baseAudioStartGame = game.startGame.bind(game);
-game.startGame = function () {
-  if (this.state === "menu") AudioFX.select();
-  baseAudioStartGame();
-};
+// Suono di conferma personaggio, senza assumere che startGame esista sempre.
+if (typeof game.startGame === "function") {
+  const baseAudioStartGame = game.startGame.bind(game);
+  game.startGame = function () {
+    if (this.state === "menu") AudioFX.select();
+    return baseAudioStartGame();
+  };
+}
