@@ -61,7 +61,7 @@ const AudioFX = {
     osc.stop(end + 0.01);
   },
 
-  noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0 }) {
+  noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0, lowpass = 0 }) {
     const ctx = this.ensure();
     if (!ctx) return;
 
@@ -81,7 +81,16 @@ const AudioFX = {
       const filter = ctx.createBiquadFilter();
       filter.type = "highpass";
       filter.frequency.value = highpass;
-      source.connect(filter);
+      output.connect(filter);
+      output = filter;
+    }
+    // Il lowpass tiene il "corpo" grave del rumore per le esplosioni (senza,
+    // il rumore bianco suona solo come un fruscio metallico acuto).
+    if (lowpass > 0) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = lowpass;
+      output.connect(filter);
       output = filter;
     }
 
@@ -143,14 +152,73 @@ const AudioFX = {
     }
   },
 
+  /**
+   * Scoppio in stile Metal Slug: rumore col "corpo" grave (lowpass) invece del solo
+   * fruscio acuto, piu' un thump sub-bass sotto per dare peso all'esplosione. `explosionBig`
+   * e' la stessa idea allungata/rinforzata per boss ed eventi importanti.
+   */
+  explosionSmall(delay = 0) {
+    this.noise({ duration: 0.1, volume: 0.32, delay, lowpass: 1800 });
+    this.tone({ freq: 150, endFreq: 45, duration: 0.12, type: "square", volume: 0.3, delay });
+    this.tone({ freq: 55, endFreq: 28, duration: 0.16, type: "sine", volume: 0.22, delay });
+  },
+
+  explosionBig(delay = 0) {
+    this.noise({ duration: 0.32, volume: 0.4, delay, lowpass: 1500 });
+    this.noise({ duration: 0.12, volume: 0.2, delay: delay + 0.06, highpass: 2200 });
+    this.tone({ freq: 130, endFreq: 32, duration: 0.34, type: "sawtooth", volume: 0.4, delay });
+    this.tone({ freq: 46, endFreq: 20, duration: 0.44, type: "sine", volume: 0.36, delay: delay + 0.02 });
+  },
+
   hit(killed = false) {
     if (killed) {
-      this.noise({ duration: 0.085, volume: 0.3, highpass: 220 });
-      this.tone({ freq: 160, endFreq: 65, duration: 0.1, type: "square", volume: 0.28 });
+      this.explosionSmall();
     } else {
       this.noise({ duration: 0.035, volume: 0.18, highpass: 700 });
       this.tone({ freq: 220, endFreq: 160, duration: 0.035, type: "square", volume: 0.18 });
     }
+  },
+
+  /** Colpo sul boss: distinto dal colpo sui walker normali, piu' pesante. Al kill: esplosione grande. */
+  bossHit(killed = false) {
+    if (killed) {
+      this.explosionBig();
+      return;
+    }
+    this.noise({ duration: 0.05, volume: 0.26, highpass: 250 });
+    this.tone({ freq: 180, endFreq: 85, duration: 0.07, type: "square", volume: 0.3 });
+    this.tone({ freq: 62, endFreq: 40, duration: 0.09, type: "sine", volume: 0.2 });
+  },
+
+  /** Sirena d'allarme all'arrivo del boss, stile "warning" arcade: due toni alternati. */
+  bossSpawn() {
+    [340, 500, 340, 500].forEach((freq, i) => {
+      this.tone({ freq, endFreq: freq * 1.25, duration: 0.2, type: "square", volume: 0.28, delay: i * 0.22 });
+    });
+    this.noise({ duration: 0.5, volume: 0.14, lowpass: 1600 });
+  },
+
+  /** Schivata: whoosh breve, distinto dal salto/attacco. */
+  dodge() {
+    this.noise({ duration: 0.1, volume: 0.14, highpass: 1000 });
+    this.tone({ freq: 850, endFreq: 240, duration: 0.09, type: "sine", volume: 0.14 });
+  },
+
+  /** Fanfara di fine livello, arpeggio ascendente stile "mission complete" arcade. */
+  levelClear() {
+    [392, 494, 587, 784].forEach((freq, i) => {
+      this.tone({ freq, endFreq: freq * 1.02, duration: 0.14, type: "square", volume: 0.26, delay: i * 0.09 });
+    });
+    this.tone({ freq: 784, endFreq: 1046, duration: 0.32, type: "triangle", volume: 0.22, delay: 0.36 });
+  },
+
+  /** Blip generico per entrare/uscire da pausa e conferma-uscita: acuto per aprire, grave per chiudere. */
+  menuOpen() {
+    this.tone({ freq: 420, endFreq: 640, duration: 0.05, type: "square", volume: 0.16 });
+  },
+
+  menuClose() {
+    this.tone({ freq: 620, endFreq: 360, duration: 0.05, type: "square", volume: 0.16 });
   },
 
   hurt() {
@@ -191,11 +259,13 @@ Player.prototype.update = function (currentGame) {
     Input.wasPressed("super") &&
     this.character.super &&
     (this.superCharge ?? 0) >= this.character.super.max;
+  const dodging = Input.wasPressed("dodge") && this.dodgeCooldown === 0;
 
   baseAudioPlayerUpdate.call(this, currentGame);
 
   if (jumping) AudioFX.jump();
   if (usingSuper) AudioFX.super(this.character.id);
+  if (dodging) AudioFX.dodge();
 };
 
 const baseAudioTakeHit = Player.prototype.takeHit;
@@ -210,6 +280,42 @@ Zombie.prototype.takeDamage = function (amount) {
   const killed = baseAudioZombieDamage.call(this, amount);
   AudioFX.hit(killed);
   return killed;
+};
+
+// Il boss e' una classe a se' (non eredita da Zombie, vedi boss.js), quindi ha bisogno
+// del proprio wrap: senza questo i colpi sul boss restano muti.
+const baseAudioBossDamage = Boss.prototype.takeDamage;
+Boss.prototype.takeDamage = function (amount) {
+  const killed = baseAudioBossDamage.call(this, amount);
+  AudioFX.bossHit(killed);
+  return killed;
+};
+
+const baseAudioSpawnBoss = game.spawnBoss.bind(game);
+game.spawnBoss = function () {
+  baseAudioSpawnBoss();
+  AudioFX.bossSpawn();
+};
+
+const baseAudioCompleteLevel = game.completeLevel.bind(game);
+game.completeLevel = function () {
+  baseAudioCompleteLevel();
+  AudioFX.levelClear();
+};
+
+// Confronta lo stato prima/dopo update() per intercettare pausa/conferma-uscita anche
+// quando arrivano da tastiera/touch (che agiscono dentro lo switch di update(), non in
+// funzioni dedicate come startGame/spawnBoss).
+const baseAudioUpdate = game.update.bind(game);
+game.update = function () {
+  const prevState = this.state;
+  baseAudioUpdate();
+  const state = this.state;
+  if (state === prevState) return;
+
+  if (state === "paused" || state === "confirmQuit") AudioFX.menuOpen();
+  else if (prevState === "paused" && state === "playing") AudioFX.menuClose();
+  else if (prevState === "confirmQuit" && (state === "playing" || state === "menu")) AudioFX.menuClose();
 };
 
 const baseAudioEndGame = game.endGame.bind(game);

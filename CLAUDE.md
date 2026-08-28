@@ -30,6 +30,12 @@ js/boss.js              3.4) classe Boss + bossConfigForLevel(level) — entita'
                         riusa SPRITES.zombie/drawSprite, entita' core non un monkeypatch
 js/scores.js            3.5) modulo `Scores`: salva i punteggi su Firestore (fallback localStorage)
 js/game.js              4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
+js/audio.js             ultimo) modulo `AudioFX`: effetti sonori sintetici (Web Audio, nessun file
+                        audio esterno), caricato per ultimo cosi' puo' agganciarsi a tutto il resto
+                        con lo stesso pattern di monkeypatch dei file personaggio (vedi sezione
+                        dedicata sotto). Cache-busted in index.html con `?v=x.y.z`: incrementare la
+                        versione ogni volta che si modifica il file, altrimenti i browser mobile
+                        (che cacheano aggressivamente) continuano a servire la versione vecchia.
 ```
 
 Persistenza dei punteggi: vedi `docs/punteggi-persistenza.md` per architettura, percorso
@@ -232,6 +238,30 @@ l'iterazione.
 Punti a tempo (1/secondo) + punti a uccisione moltiplicati dal combo (`registerKill` in `game.js`,
 combo max x5, scade con `comboTimer`). High score in `localStorage` (chiave `HIGHSCORE_KEY`),
 letto/scritto solo in `game.js`.
+
+### Effetti sonori (js/audio.js)
+`AudioFX` sintetizza tutto con Web Audio (`tone()` = oscillatore con pitch-bend esponenziale,
+`noise()` = buffer di rumore bianco con filtro `highpass`/`lowpass` opzionale) — nessun file audio
+esterno, coerente con "nessuna dipendenza esterna" del progetto. Stile "Metal Slug": le esplosioni
+(`explosionSmall`/`explosionBig`, usate per uccisioni normali/boss) combinano rumore con `lowpass`
+(da' il "corpo" grave, il solo `highpass` suonerebbe come fruscio metallico) + un thump sub-bass in
+`sine`/`sawtooth` sotto, invece di un singolo bip.
+
+`audio.js` e' caricato per **ultimo** in `index.html` (dopo tutti i file personaggio) proprio per
+poter avvolgere l'intera catena di monkeypatch gia' assemblata, con lo stesso pattern "cattura
+`base...`, richiama, poi aggiungi il suono" usato da `js/silvia.js`/`js/luca90.js`/etc. Alcuni
+aggangi non ovvi:
+- **Il boss non e' uno `Zombie`** (vedi sezione "Sistema di livelli e boss"): agganciare solo
+  `Zombie.prototype.takeDamage` lascia i colpi sul boss muti. Serve un wrap separato su
+  `Boss.prototype.takeDamage` (`AudioFX.bossHit`), che al kill richiama `explosionBig()`.
+- **Pausa/conferma-uscita non sono funzioni dedicate**: gli stati `paused`/`confirmQuit` si
+  impostano inline dentro lo `switch` di `game.update()` (tastiera/touch), non tramite metodi come
+  `startGame()`/`spawnBoss()` che si potrebbero avvolgere direttamente. Per dare un suono a
+  quelle transizioni, il wrap confronta `game.state` prima e dopo aver richiamato la versione base
+  di `update()` e reagisce al cambio (vedi `AudioFX.menuOpen`/`menuClose` in `audio.js`) — pattern
+  da riusare per qualunque altra transizione di stato che non passi da una funzione propria.
+- Cambiare il suono di un personaggio = editare il proprio `case` in `AudioFX.attack()`; aggiungerne
+  uno nuovo non richiede toccare gli altri case.
 
 ## Gestione Mobile
 
