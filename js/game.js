@@ -55,8 +55,9 @@ function text(str, x, y, { size = 8, color = COLORS.text, align = "left", shadow
 }
 
 const game = {
-  state: "menu", // "menu" | "playing" | "paused" | "gameover"
+  state: "menu", // "menu" | "playing" | "paused" | "settings" | "gameover"
   selectedCharacter: 0,
+  settingsCursor: 0,
   character: null,
   player: null,
   zombies: [],
@@ -133,10 +134,24 @@ const game = {
     return ((event.clientX - rect.left) / rect.width) * GAME_W;
   },
 
+  canvasY(event) {
+    const rect = canvas.getBoundingClientRect();
+    return ((event.clientY - rect.top) / rect.height) * GAME_H;
+  },
+
+  /** Angolo cliccabile per aprire le impostazioni dal menu (vedi drawMenu). */
+  OPTIONS_LABEL_RECT: { x: GAME_W - 56, y: 0, w: 56, h: 12 },
+
   handleClick(event) {
     const x = this.canvasX(event);
 
     if (this.state === "menu") {
+      const y = this.canvasY(event);
+      const r = this.OPTIONS_LABEL_RECT;
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        this.openSettings();
+        return;
+      }
       // Lati dello schermo = scorri il carosello, centro = conferma la scelta.
       if (CHARACTERS.length > 1 && x < GAME_W / 3) {
         this.prevCharacter();
@@ -145,6 +160,8 @@ const game = {
       } else {
         this.startGame();
       }
+    } else if (this.state === "settings") {
+      this.closeSettings();
     } else if (this.state === "paused") {
       this.state = "playing";
     } else if (this.state === "confirmQuit") {
@@ -183,6 +200,9 @@ const game = {
       case "playing":
         this.updatePlaying();
         break;
+      case "settings":
+        this.updateSettings();
+        break;
       case "paused":
         if (Input.wasPressed("pause")) this.state = "playing";
         if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.state = "confirmQuit";
@@ -209,6 +229,79 @@ const game = {
     if (Input.wasPressed("left")) this.prevCharacter();
     if (Input.wasPressed("right")) this.nextCharacter();
     if (Input.wasPressed("confirm") || Input.wasPressed("jump")) this.startGame();
+    // "back" (Esc/SELECT) non ha altro significato nel menu: qui apre le impostazioni.
+    if (Input.wasPressed("back")) this.openSettings();
+  },
+
+  openSettings() {
+    this.settingsCursor = 0;
+    this.state = "settings";
+  },
+
+  closeSettings() {
+    Input.cancelCapture();
+    this.state = "menu";
+  },
+
+  /** Righe della schermata impostazioni: azioni da tastiera su desktop, pulsanti volto su
+   * mobile (solo A/B/X/Y, vedi CLAUDE.md) — stessa riga di reset in fondo in entrambi i casi. */
+  settingsRows() {
+    const base = Input.touch ? SETTINGS_TOUCH_SLOTS : SETTINGS_ACTIONS;
+    return [...base, { id: "__reset__", label: "RIPRISTINA PREDEFINITI" }];
+  },
+
+  updateSettings() {
+    // Mentre si aspetta un tasto (solo desktop), i prossimi input vanno al listener di
+    // cattura in input.js, non alla navigazione qui sotto: Escape lo annulla li'.
+    if (Input.capturingAction) return;
+
+    if (Input.touch) {
+      // Solo "back" (SELECT, mai rimappabile) esce: "dodge" e' invece una delle azioni
+      // cicalbili sui pulsanti volto. Se anche "dodge" chiudesse le impostazioni, appena un
+      // pulsante veniva ciclato su "dodge" ogni tocco successivo su quel pulsante avrebbe
+      // fatto scattare l'azione logica "dodge" e uscito dalla schermata invece di continuare
+      // il ciclo — impossibile spostarlo altrove da li' in poi.
+      if (Input.wasPressed("back")) this.closeSettings();
+      else this.updateSettingsTouch();
+      return;
+    }
+
+    if (Input.wasPressed("back") || Input.wasPressed("dodge")) {
+      this.closeSettings();
+      return;
+    }
+
+    const rows = this.settingsRows();
+    if (Input.wasPressed("up")) this.settingsCursor = (this.settingsCursor - 1 + rows.length) % rows.length;
+    if (Input.wasPressed("down")) this.settingsCursor = (this.settingsCursor + 1) % rows.length;
+
+    if (Input.wasPressed("confirm") || Input.wasPressed("jump")) {
+      const row = rows[this.settingsCursor];
+      if (row.id === "__reset__") Input.resetKeyMap();
+      else Input.startCapture(row.id);
+    }
+  },
+
+  /** Su touch i comandi della schermata impostazioni restano SEMPRE disaccoppiati dalla
+   * rimappatura, altrimenti rimappare via il pulsante A (di fabbrica = "jump", cioe' il tasto
+   * usato per confermare le altre righe del menu) renderebbe la schermata stessa inutilizzabile:
+   * ogni pulsante volto cicla la propria riga in base alla pressione FISICA (Input.wasSlotPressed,
+   * indipendente dall'azione a cui e' assegnato ora), il reset usa START (azione "pause", niente
+   * `data-slot` quindi mai rimappabile su touch — vedi bindTouchPad in input.js), e su/giu' restano
+   * solo un cursore visivo. */
+  updateSettingsTouch() {
+    const rows = this.settingsRows();
+
+    SETTINGS_TOUCH_SLOTS.forEach((row, index) => {
+      if (!Input.wasSlotPressed(row.id)) return;
+      Input.cycleTouchSlot(row.id);
+      this.settingsCursor = index;
+    });
+
+    if (Input.wasPressed("pause")) Input.resetTouchMap();
+
+    if (Input.wasPressed("up")) this.settingsCursor = (this.settingsCursor - 1 + rows.length) % rows.length;
+    if (Input.wasPressed("down")) this.settingsCursor = (this.settingsCursor + 1) % rows.length;
   },
 
   /** Scorrimento circolare del carosello: funziona con qualunque numero di personaggi. */
@@ -487,6 +580,9 @@ const game = {
 
     if (this.state === "menu") {
       this.drawMenu();
+    } else if (this.state === "settings") {
+      // Niente partita in corso sotto: ramo a se' invece che annidato come paused/confirmQuit.
+      this.drawSettings();
     } else {
       this.drawWorld();
       this.drawHud();
@@ -596,6 +692,10 @@ const game = {
     text("ZOMBIE SNACK", GAME_W / 2, 8, { size: 16, align: "center", color: COLORS.accent });
     text("SCEGLI IL TUO EROE", GAME_W / 2, 26, { size: 9, align: "center", color: "#a9c9a9" });
 
+    // Angolo cliccabile (vedi OPTIONS_LABEL_RECT in handleClick) per aprire le impostazioni
+    // anche senza tastiera: su desktop e' comunque raggiungibile con Esc.
+    text(this.hint("ESC = OPZIONI", "OPZIONI ▸"), GAME_W - 4, 3, { size: 6, align: "right", color: "#6f8a6f" });
+
     // Carosello: una sola carta centrata, cosi' la schermata regge qualunque
     // numero di personaggi in CHARACTERS senza dover stringere il layout.
     const character = CHARACTERS[this.selectedCharacter];
@@ -649,6 +749,71 @@ const game = {
       });
     }
     text(`RECORD: ${this.highscore}`, GAME_W / 2, 166, { size: 8, align: "center", color: "#a9c9a9" });
+  },
+
+  /** Lista scorrevole di righe rimappabili (azioni da tastiera su desktop, pulsanti volto su
+   * mobile — vedi settingsRows()): stessa struttura di drawEnterName (riga attiva evidenziata),
+   * con una finestra scorrevole perche' le 11 azioni desktop + reset non ci stanno tutte a
+   * schermo leggibili in una volta. */
+  drawSettings() {
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    ctx.fillStyle = "rgba(10,16,22,0.95)";
+    ctx.fillRect(30, 14, GAME_W - 60, GAME_H - 44);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30.5, 14.5, GAME_W - 61, GAME_H - 45);
+
+    text("IMPOSTAZIONI", GAME_W / 2, 20, { size: 12, align: "center", color: COLORS.accent });
+    text(this.hint("SCEGLI IL TASTO PER OGNI AZIONE", "SCEGLI L'AZIONE DI OGNI PULSANTE"), GAME_W / 2, 34, {
+      size: 7,
+      align: "center",
+      color: "#a9c9a9",
+    });
+
+    const rows = this.settingsRows();
+    const rowH = 14;
+    const visibleRows = 6;
+    const listTop = 48;
+    const start = Math.max(0, Math.min(this.settingsCursor - 2, Math.max(0, rows.length - visibleRows)));
+
+    for (let i = 0; i < Math.min(visibleRows, rows.length); i++) {
+      const index = start + i;
+      const row = rows[index];
+      const active = index === this.settingsCursor;
+      const y = listTop + i * rowH;
+
+      if (active) {
+        ctx.fillStyle = "rgba(124,232,124,0.18)";
+        ctx.fillRect(38, y - 2, GAME_W - 76, rowH - 2);
+      }
+
+      text(row.label, 44, y, { size: 8, align: "left", color: active ? COLORS.accent : COLORS.text });
+
+      if (row.id === "__reset__") continue;
+
+      const capturing = Input.capturingAction === row.id;
+      const valueText = capturing ? "IN ATTESA..." : Input.touch ? Input.touchActionLabel(row.id) : Input.keyLabelFor(row.id);
+      text(valueText, GAME_W - 44, y, {
+        size: 8,
+        align: "right",
+        color: capturing ? "#ffe066" : active ? COLORS.accent : "#a9c9a9",
+      });
+    }
+
+    const blink = Math.floor(Date.now() / 400) % 2 === 0;
+    if (blink) {
+      text(
+        this.hint(
+          "SU/GIU = SCEGLI   INVIO = CAMBIA TASTO   ESC = ESCI",
+          "TOCCA UN PULSANTE PER CAMBIARLO   START = RESET   SELECT = ESCI"
+        ),
+        GAME_W / 2,
+        GAME_H - 24,
+        { size: 7, align: "center", color: "#ffe066" }
+      );
+    }
   },
 
   drawPause() {

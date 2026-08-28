@@ -39,28 +39,28 @@
           <div class="gb-face">
             <div class="gb-ab">
               <div class="gb-ab__slot gb-ab__slot--x">
-                <button type="button" class="gb-round gb-round--x" data-action="dodge" aria-label="Scatto">
+                <button type="button" class="gb-round gb-round--x" data-action="dodge" data-slot="btnX" aria-label="Scatto">
                   <span>X</span>
                 </button>
-                <span class="gb-ab__label">SCATTO</span>
+                <span class="gb-ab__label" data-slot-label="btnX">SCATTO</span>
               </div>
               <div class="gb-ab__slot gb-ab__slot--y">
-                <button type="button" class="gb-round gb-round--y gb-round--super" data-action="super" aria-label="Super">
+                <button type="button" class="gb-round gb-round--y gb-round--super" data-action="super" data-slot="btnY" aria-label="Super">
                   <span>Y</span>
                 </button>
-                <span class="gb-ab__label">SUPER</span>
+                <span class="gb-ab__label" data-slot-label="btnY">SUPER</span>
               </div>
               <div class="gb-ab__slot gb-ab__slot--b">
-                <button type="button" class="gb-round" data-action="attack" aria-label="Attacca">
+                <button type="button" class="gb-round" data-action="attack" data-slot="btnB" aria-label="Attacca">
                   <span>B</span>
                 </button>
-                <span class="gb-ab__label">ATTACCA</span>
+                <span class="gb-ab__label" data-slot-label="btnB">ATTACCA</span>
               </div>
               <div class="gb-ab__slot gb-ab__slot--a">
-                <button type="button" class="gb-round" data-action="jump" aria-label="Salta">
+                <button type="button" class="gb-round" data-action="jump" data-slot="btnA" aria-label="Salta">
                   <span>A</span>
                 </button>
-                <span class="gb-ab__label">SALTA</span>
+                <span class="gb-ab__label" data-slot-label="btnA">SALTA</span>
               </div>
             </div>
           </div>
@@ -75,7 +75,7 @@
               <span class="gb-pill__name">START</span>
             </button>
           </div>
-          <div style="position:absolute; left:50%; transform:translateX(-50%); bottom:9px; font:9px monospace; opacity:.42; letter-spacing:.4px; pointer-events:none;">1.8.0</div>
+          <div style="position:absolute; left:50%; transform:translateX(-50%); bottom:9px; font:9px monospace; opacity:.42; letter-spacing:.4px; pointer-events:none;">1.12.0</div>
         </div>
 
         <div class="gb-speaker" aria-hidden="true">
@@ -93,7 +93,8 @@
           <li><kbd>F</kbd> <span>Attacca</span></li>
           <li><kbd>Y</kbd> <span>Super (quando disponibile)</span></li>
           <li><kbd>P</kbd> <span>Pausa</span></li>
-          <li><kbd>Esc</kbd> <span>Esci dalla partita (con conferma)</span></li>
+          <li><kbd>Esc</kbd> <span>Esci dalla partita (con conferma) / nel menu: impostazioni</span></li>
+          <li><kbd>M</kbd> <span>Muta/riattiva la musica</span></li>
         </ul>
       </section>
     </main>
@@ -119,6 +120,6 @@
     <script src="js/fabio.js"></script>
     <script src="js/dario.js"></script>
     <script src="js/menu-polish.js"></script>
-    <script src="js/audio.js?v=1.9.0"></script>
+    <script src="js/audio.js?v=1.12.0"></script>
   </body>
 </html>

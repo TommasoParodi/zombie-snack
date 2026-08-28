@@ -38,7 +38,13 @@ const AudioFX = {
     } catch (_) {}
   },
 
-  tone({ freq = 440, endFreq = freq, duration = 0.08, type = "square", volume = 0.35, delay = 0 }) {
+  /**
+   * `node`: destinazione opzionale al posto di `ctx.destination`. Usata da `Music` per instradare
+   * ogni nota nel proprio gain node dedicato (volume/mute della musica indipendenti dagli SFX,
+   * che restano sul master `this.master`), riusando `tone()`/`noise()` cosi' com'e' invece di
+   * duplicare la sintesi.
+   */
+  tone({ freq = 440, endFreq = freq, duration = 0.08, type = "square", volume = 0.35, delay = 0, node = null }) {
     const ctx = this.ensure();
     if (!ctx) return;
 
@@ -56,12 +62,12 @@ const AudioFX = {
     gain.gain.exponentialRampToValueAtTime(0.0001, end);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(node || ctx.destination);
     osc.start(start);
     osc.stop(end + 0.01);
   },
 
-  noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0, lowpass = 0 }) {
+  noise({ duration = 0.07, volume = 0.22, delay = 0, highpass = 0, lowpass = 0, node = null }) {
     const ctx = this.ensure();
     if (!ctx) return;
 
@@ -97,7 +103,7 @@ const AudioFX = {
     gain.gain.setValueAtTime(this.master * volume, start);
     gain.gain.exponentialRampToValueAtTime(0.0001, end);
     output.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(node || ctx.destination);
     source.start(start);
     source.stop(end + 0.01);
   },
@@ -239,12 +245,121 @@ const AudioFX = {
       this.tone({ freq, endFreq: freq * 0.88, duration: 0.16, type: "square", volume: 0.24, delay: i * 0.13 });
     });
   },
+
+  /** Blip per mute/unmute della musica (M): discendente quando si muta, ascendente quando si riattiva. */
+  audioToggle(muted) {
+    this.tone({ freq: muted ? 520 : 340, endFreq: muted ? 280 : 660, duration: 0.06, type: "square", volume: 0.2 });
+  },
+};
+
+const MUSIC_MUTE_KEY = "zombie-snack-music-muted";
+
+/**
+ * Musica di sottofondo durante il livello: composizione originale (ostinato di basso +
+ * stab a fiati sincopati + percussioni) ispirata al piglio "azione militare" delle BGM
+ * arcade a scorrimento stile Metal Slug, non una trascrizione di un brano esistente —
+ * niente file audio esterni, coerente col resto del progetto (vedi CLAUDE.md).
+ *
+ * Sequencer volutamente semplice (`setInterval` a passo fisso, niente clock lookahead
+ * campione-per-campione): per una BGM di sottofondo il jitter e' impercettibile, e resta
+ * coerente con lo stile "niente code/promesse" del resto di questo file.
+ */
+const Music = {
+  ctx: null,
+  gainNode: null,
+  volume: 0.5,
+  muted: localStorage.getItem(MUSIC_MUTE_KEY) === "1",
+  playing: false,
+  step: 0,
+  stepMs: 100, // sedicesimo a 150bpm (60000/150/4)
+  timerId: null,
+
+  // Ostinato di basso in La minore, un accordo ogni ottavo (due note = 1 passo di melodia sopra).
+  bassPattern: [110.0, 110.0, 130.81, 110.0, 164.81, 146.83, 130.81, 123.47, 110.0, 110.0, 130.81, 164.81, 174.61, 164.81, 146.83, 130.81],
+  // Stab sincopati sopra il basso, in gran parte silenzio: danno il piglio "a fiati" senza
+  // sovraccaricare il loop. null = nessuna nota in quel sedicesimo.
+  leadPattern: [
+    null, null, null, 440.0, null, null, null, 523.25, null, null, null, 440.0, null, null, 659.25, 587.33,
+    null, null, null, 440.0, null, null, null, 523.25, null, null, null, 440.0, null, 783.99, 659.25, null,
+  ],
+  kickSteps: new Set([0, 4, 8, 10]),
+  snareSteps: new Set([4, 12]),
+
+  ensureGain() {
+    const ctx = AudioFX.ensure();
+    if (!ctx) return null;
+    if (!this.gainNode) {
+      this.gainNode = ctx.createGain();
+      this.gainNode.gain.value = this.muted ? 0 : this.volume;
+      this.gainNode.connect(ctx.destination);
+    }
+    return this.gainNode;
+  },
+
+  applyGain() {
+    const ctx = AudioFX.ensure();
+    const node = this.gainNode;
+    if (!ctx || !node) return;
+    const target = this.muted ? 0 : this.volume;
+    node.gain.cancelScheduledValues(ctx.currentTime);
+    node.gain.linearRampToValueAtTime(target, ctx.currentTime + 0.08);
+  },
+
+  toggleMute() {
+    this.muted = !this.muted;
+    localStorage.setItem(MUSIC_MUTE_KEY, this.muted ? "1" : "0");
+    this.applyGain();
+    AudioFX.audioToggle(this.muted);
+  },
+
+  start() {
+    if (this.playing) return;
+    if (!this.ensureGain()) return;
+
+    this.playing = true;
+    this.step = 0;
+    this.tick();
+    this.timerId = setInterval(() => this.tick(), this.stepMs);
+  },
+
+  stop() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+    this.playing = false;
+  },
+
+  tick() {
+    const node = this.gainNode;
+    const stepInBar = this.step % 16;
+
+    if (this.step % 2 === 0) {
+      const bassFreq = this.bassPattern[Math.floor(this.step / 2) % this.bassPattern.length];
+      AudioFX.tone({ freq: bassFreq, duration: 0.16, type: "triangle", volume: 0.55, node });
+    }
+
+    const leadFreq = this.leadPattern[this.step % this.leadPattern.length];
+    if (leadFreq) AudioFX.tone({ freq: leadFreq, endFreq: leadFreq * 0.97, duration: 0.13, type: "square", volume: 0.3, node });
+
+    if (this.kickSteps.has(stepInBar)) AudioFX.tone({ freq: 62, endFreq: 38, duration: 0.13, type: "sine", volume: 0.6, node });
+    if (this.snareSteps.has(stepInBar)) AudioFX.noise({ duration: 0.08, volume: 0.28, highpass: 1200, node });
+    if (stepInBar % 2 === 0) AudioFX.noise({ duration: 0.03, volume: 0.1, highpass: 6000, node });
+
+    this.step = (this.step + 1) % this.leadPattern.length;
+  },
 };
 
 // Sblocco diretto durante la gesture. Listener passivi: non interferiscono col multitouch.
 window.addEventListener("pointerdown", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
 window.addEventListener("touchstart", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
 window.addEventListener("keydown", () => AudioFX.unlock(), { once: true, passive: true, capture: true });
+
+// Muta/riattiva la musica con M: tasto globale, non un'azione di Input (funziona in
+// qualunque schermata, non solo durante "playing", e non ha bisogno di un pulsante touch).
+window.addEventListener("keydown", (event) => {
+  if (event.code === "KeyM") Music.toggleMute();
+});
 
 const baseAudioAttack = Player.prototype.attack;
 Player.prototype.attack = function (currentGame) {
@@ -318,10 +433,110 @@ game.update = function () {
   else if (prevState === "confirmQuit" && (state === "playing" || state === "menu")) AudioFX.menuClose();
 };
 
+// Apertura/chiusura della schermata impostazioni: stesso blip di pausa/conferma-uscita.
+const baseAudioOpenSettings = game.openSettings.bind(game);
+game.openSettings = function () {
+  baseAudioOpenSettings();
+  AudioFX.menuOpen();
+};
+
+const baseAudioCloseSettings = game.closeSettings.bind(game);
+game.closeSettings = function () {
+  AudioFX.menuClose();
+  baseAudioCloseSettings();
+};
+
+// Riscontro tattile per un rebind/reset riuscito, riusando i preset tone() esistenti
+// invece di sintetizzare un suono nuovo solo per questo.
+const baseAudioApplyRebind = Input.applyRebind.bind(Input);
+Input.applyRebind = function (action, code) {
+  baseAudioApplyRebind(action, code);
+  AudioFX.select();
+};
+
+const baseAudioCycleTouchSlot = Input.cycleTouchSlot.bind(Input);
+Input.cycleTouchSlot = function (slot) {
+  baseAudioCycleTouchSlot(slot);
+  AudioFX.menu();
+};
+
+const baseAudioResetKeyMap = Input.resetKeyMap.bind(Input);
+Input.resetKeyMap = function () {
+  baseAudioResetKeyMap();
+  AudioFX.select();
+};
+
+const baseAudioResetTouchMap = Input.resetTouchMap.bind(Input);
+Input.resetTouchMap = function () {
+  baseAudioResetTouchMap();
+  AudioFX.select();
+};
+
 const baseAudioEndGame = game.endGame.bind(game);
 game.endGame = function () {
   AudioFX.gameOver();
+  Music.stop();
   baseAudioEndGame();
+};
+
+// Uscita dalla partita in corso senza morire (conferma-uscita, "torna al menu" da
+// levelClear): anche qui la musica di livello deve fermarsi.
+const baseAudioGoToMenu = game.goToMenu.bind(game);
+game.goToMenu = function () {
+  Music.stop();
+  baseAudioGoToMenu();
+};
+
+/**
+ * Iconcina altoparlante nella barra superiore dell'HUD: onde sonore se la musica e' attiva,
+ * barrata (rosso) se muta. Disegnata a mano coi primitivi del canvas invece che come sprite
+ * in sprites.js: e' un'icona UI minuscola legata allo stato audio, non un personaggio/oggetto
+ * di gioco (sprites.js non deve conoscere lo stato di gioco, vedi CLAUDE.md).
+ */
+function drawMusicIcon(x, y, muted) {
+  const color = muted ? "#5a5f52" : COLORS.accent;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y + 2);
+  ctx.lineTo(x + 2, y + 2);
+  ctx.lineTo(x + 5, y);
+  ctx.lineTo(x + 5, y + 8);
+  ctx.lineTo(x + 2, y + 6);
+  ctx.lineTo(x, y + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.lineWidth = 1;
+  if (muted) {
+    ctx.strokeStyle = COLORS.warn;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, y - 1);
+    ctx.lineTo(x + 12, y + 9);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.arc(x + 5, y + 4, 3, -0.7, 0.7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + 5, y + 4, 6, -0.55, 0.55);
+    ctx.stroke();
+  }
+}
+
+// Icona permanente (non solo quando muta) nella barra superiore, a sinistra dei cuoricini
+// (che partono da x=308 e occupano 12px l'uno, vedi drawHud in game.js e
+// CHARACTER_LIVES in character-lives.js): senza, mute/unmute non ha alcun riscontro
+// visivo persistente se in quel momento non sta suonando nessuna nota. La posizione si
+// calcola dal numero massimo di vite del personaggio corrente (non fissa a 3) perche'
+// character-lives.js disegna cuori extra a sinistra per i personaggi a 4/5 vite: con un
+// x fisso l'icona finiva sovrapposta al cuore piu' a sinistra per quei personaggi.
+const baseAudioDrawHud = game.drawHud.bind(game);
+game.drawHud = function () {
+  baseAudioDrawHud();
+  const maxLives = (typeof CHARACTER_LIVES !== "undefined" ? CHARACTER_LIVES[this.player.character.id] : null) ?? 3;
+  const leftmostHeartX = GAME_W - 12 - (maxLives - 1) * 12;
+  drawMusicIcon(leftmostHeartX - 18, 4, Music.muted);
 };
 
 const baseAudioPrevCharacter = game.prevCharacter.bind(game);
@@ -337,10 +552,14 @@ game.nextCharacter = function () {
 };
 
 // Suono di conferma personaggio, senza assumere che startGame esista sempre.
+// startGame() e' anche il punto d'ingresso per (ri)avviare la musica di livello: sia dal
+// menu (nuova run) sia dal game over (riprova), non solo la prima volta.
 if (typeof game.startGame === "function") {
   const baseAudioStartGame = game.startGame.bind(game);
   game.startGame = function () {
     if (this.state === "menu") AudioFX.select();
-    return baseAudioStartGame();
+    const result = baseAudioStartGame();
+    Music.start();
+    return result;
   };
 }

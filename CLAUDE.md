@@ -30,8 +30,9 @@ js/boss.js              3.4) classe Boss + bossConfigForLevel(level) — entita'
                         riusa SPRITES.zombie/drawSprite, entita' core non un monkeypatch
 js/scores.js            3.5) modulo `Scores`: salva i punteggi su Firestore (fallback localStorage)
 js/game.js              4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
-js/audio.js             ultimo) modulo `AudioFX`: effetti sonori sintetici (Web Audio, nessun file
-                        audio esterno), caricato per ultimo cosi' puo' agganciarsi a tutto il resto
+js/audio.js             ultimo) moduli `AudioFX` (effetti sonori) e `Music` (musica di sottofondo
+                        del livello, mute con M): tutto sintetico via Web Audio, nessun file audio
+                        esterno, caricato per ultimo cosi' puo' agganciarsi a tutto il resto
                         con lo stesso pattern di monkeypatch dei file personaggio (vedi sezione
                         dedicata sotto). Cache-busted in index.html con `?v=x.y.z`: incrementare la
                         versione ogni volta che si modifica il file, altrimenti i browser mobile
@@ -64,10 +65,13 @@ punteggio (o lo salta) tramite `Scores.save()` (vedi `js/scores.js` e
 `docs/punteggi-persistenza.md`) prima di passare a `"gameover"`. **`enterName`/`gameover` restano
 riservati alla sola morte del giocatore**: il sistema di livelli non li tocca mai, anche quando la
 run continua per molti livelli. `game.update()` fa uno switch sullo stato e delega a
-`updateMenu()`/`updatePlaying()`/`updateEnterName()`/inline per gli altri; `game.draw()` fa lo
-stesso per il disegno (`drawMenu`, `drawWorld`+`drawHud`, `drawPause`, `drawConfirmQuit`,
-`drawEnterName`, `drawLevelClear`, `drawGameOver`). Aggiungere un nuovo stato = aggiungere un case
-in entrambi gli switch, piu' l'eventuale funzione `drawX`/`updateX`.
+`updateMenu()`/`updatePlaying()`/`updateEnterName()`/`updateSettings()`/inline per gli altri;
+`game.draw()` fa lo stesso per il disegno (`drawMenu`, `drawSettings`, `drawWorld`+`drawHud`,
+`drawPause`, `drawConfirmQuit`, `drawEnterName`, `drawLevelClear`, `drawGameOver`). Aggiungere un
+nuovo stato = aggiungere un case in entrambi gli switch, piu' l'eventuale funzione `drawX`/`updateX`.
+Lo stato `settings` (schermata di mapping tasti/pulsanti, raggiungibile solo dal menu — vedi
+sezione dedicata sotto "Input astratto per azione, non per tasto") e' l'unico, oltre a `menu`, a
+non passare da `drawWorld`/`drawHud`.
 
 ### Game loop
 `requestAnimationFrame` ricorsivo in `game.loop()`: `update()` -> `draw()` -> `Input.endFrame()`.
@@ -81,6 +85,63 @@ entities.js) non sa mai se il comando viene da tastiera o dito: usa solo `Input.
 (tenuto premuto, per movimento continuo) o `Input.wasPressed(azione)` (premuto in questo frame, per
 azioni singole come salto/conferma). Quando aggiungi un nuovo comando: aggiungilo a `KEY_MAP`, poi
 eventualmente un bottone con lo stesso `data-action` in `index.html`.
+
+### Schermata impostazioni (mapping tasti/pulsanti)
+Raggiungibile solo dal menu iniziale (azione `back`, cioe' Esc/SELECT, oppure il piccolo link
+"OPZIONI" in alto a destra in `drawMenu`), mai da pausa/gioco: stato `game.state = "settings"`
+(`updateSettings`/`drawSettings` in `game.js`, stesso trattamento a se stante di `menu` nello
+`switch` di `draw()`, non annidato sotto `drawWorld`/`drawHud` perche' non c'e' una partita in
+corso). Su desktop si rimappa liberamente il tasto fisico di ciascuna delle 11 azioni
+(`SETTINGS_ACTIONS` in `input.js`); su mobile si riassegna l'azione dei **soli 4 pulsanti volto
+A/B/X/Y** (`SETTINGS_TOUCH_SLOTS`, ciclabili tra `jump`/`attack`/`dodge`/`super`) — croce
+direzionale, SELECT e START restano deliberatamente fissi: sono l'unica garanzia di poter sempre
+navigare i menu (inclusa la stessa schermata impostazioni) anche dopo una rimappatura pasticciata,
+decisione presa apposta per non rischiare di restare bloccati fuori dai menu su un dispositivo
+touch senza tastiera di riserva. `KEY_MAP` (`js/input.js`) resta l'unica mappa "viva" consultata
+dai listener `keydown`/`keyup` — non e' piu' una costante di sola lettura: viene mutata in-place da
+`Input.applyRebind`/`resetKeyMap`, e persistita per intero come JSON in `localStorage`
+(`zombie-snack-keymap`; stesso per `TOUCH_MAP` -> `zombie-snack-touchmap`, ma con solo le 4 chiavi
+`btnA/btnB/btnX/btnY`), ricaricata a inizio `Input.init()` **prima** di agganciare i listener. Un
+solo tasto per azione (niente doppio-binding come i default arrows+WASD): `applyRebind(action,
+code)` toglie `code` a chiunque lo usasse gia' e toglie ad `action` il tasto precedente, cosi' un
+tasto non controlla mai due azioni.
+
+Tre dettagli non ovvi:
+- **I comandi della schermata impostazioni su touch sono disaccoppiati dalla rimappatura anche
+  per l'interazione, non solo per la navigazione** (`game.updateSettingsTouch()`): ogni pulsante
+  volto cicla la propria riga leggendo `Input.wasSlotPressed("btnA"|...)`, una pressione FISICA
+  tracciata a parte (`Input.slotsPressed`, popolato in `bindTouchPad()` sempre, a prescindere
+  dall'azione risolta), non l'azione logica a cui e' assegnato in quel momento. Il reset usa
+  l'azione `pause` (START, nessun `data-slot` quindi mai rimappabile). **Bug gia' successo per
+  davvero**: una prima versione usava `Input.wasPressed("confirm") || Input.wasPressed("jump")`
+  per "conferma/cicla" come su desktop — ma su touch `jump` e' fornito di fabbrica dal solo
+  pulsante A (uno dei 4 rimappabili) e non esiste alcun pulsante `data-action="confirm"`; appena
+  si spostava A via da `jump`, nessun pulsante poteva piu' far scattare quell'azione e l'intera
+  schermata restava bloccata. Variante dello stesso problema: l'uscita "back o dodge" (copiata
+  dal pattern di `paused`/`confirmQuit`) su touch va ristretta al solo `back` — se anche `dodge`
+  chiudesse le impostazioni, appena un pulsante volto veniva ciclato su "dodge" ogni tocco
+  successivo su quel pulsante avrebbe fatto scattare l'azione logica `dodge` e chiuso la
+  schermata invece di continuare il ciclo, rendendo quel pulsante impossibile da spostare
+  altrove. La lezione generale: su touch ogni controllo della UI impostazioni deve potersi
+  innescare **solo** da un segnale che non dipende da `TOUCH_MAP` (pressione fisica del
+  pulsante via `wasSlotPressed`, oppure un'azione — `pause`/`back` — che non ha mai un
+  `data-slot`); qualunque azione tra quelle cicalbili (`jump`/`attack`/`dodge`/`super`) non va
+  mai usata per pilotare la UI stessa, ne' direttamente ne' come scorciatoia ereditata da altri
+  schermi.
+- **Escape non e' mai assegnabile a un'azione**, nemmeno rimappando "manualmente": in
+  `Input.handleCapture` e' l'unico codice tasto che, ricevuto mentre si aspetta un nuovo tasto
+  (`Input.capturingAction`), annulla la cattura invece di completarla. Serve perche' durante
+  l'attesa **tutti** i keydown vengono dirottati a `handleCapture` (non passano dal normale
+  `KEY_MAP[event.code]`), quindi senza questo caso speciale non ci sarebbe alcun modo di annullare
+  un rebind partito per errore. Stesso principio del bypass hardcoded di `KeyM` per il mute (vedi
+  sotto "Effetti sonori"): anche `KeyM` e' escluso dalla cattura, per non renderlo ambiguo con
+  l'azione mute che gia' lo usa fuori dal sistema `Input`.
+- In `Input.bindTouchPad()`, l'azione del pulsante e' risolta da `TOUCH_MAP` e **congelata per
+  bottone al `pointerdown`** (`heldAction`, una `Map` per bottone), non ri-risolta al rilascio.
+  La schermata impostazioni touch usa proprio A/B/X/Y per cambiare la loro stessa assegnazione,
+  quindi si puo' letteralmente ciclare il mapping del pulsante A mentre lo si tiene premuto:
+  ri-risolvere l'azione al `pointerup` rilascerebbe l'azione nuova invece di quella con cui e'
+  partito il `press()`, lasciandone una bloccata a "giu'" per sempre.
 
 ### Sprite come mappe di caratteri
 Ogni sprite in `SPRITES` (`sprites.js`) e' un array di stringhe: un carattere = un pixel, `.` =
@@ -262,6 +323,28 @@ aggangi non ovvi:
   da riusare per qualunque altra transizione di stato che non passi da una funzione propria.
 - Cambiare il suono di un personaggio = editare il proprio `case` in `AudioFX.attack()`; aggiungerne
   uno nuovo non richiede toccare gli altri case.
+
+`Music` (stesso file, sotto `AudioFX`) e' la musica di sottofondo durante il livello: una
+composizione **originale** (ostinato di basso + stab sincopati + percussioni, La minore, ~150bpm)
+ispirata al piglio delle BGM arcade "azione militare" alla Metal Slug, non una trascrizione di un
+brano esistente — deliberato, per restare dentro "nessun file audio esterno" del progetto e non
+riprodurre musica protetta da copyright nota. Sequencer a passo fisso (`setInterval` ogni 100ms =
+un sedicesimo), non un clock Web Audio con lookahead: per una BGM di sottofondo il jitter e'
+impercettibile, e resta coerente con lo stile "niente code/promesse" del resto del file.
+`tone()`/`noise()` accettano un `node` opzionale (destinazione alternativa a `ctx.destination`):
+`Music` lo usa per instradare ogni nota nel proprio `GainNode` dedicato, cosi' il volume/mute della
+musica restano indipendenti dal master degli SFX (`AudioFX.master`) senza duplicare la sintesi.
+`Music.start()`/`stop()` sono agganciati a `game.startGame()` (anche da game over, non solo dal
+menu — "riprova" deve far ripartire la musica) e a `game.endGame()`/`game.goToMenu()` (musica di
+*livello*, si ferma uscendo dalla partita, in qualunque modo si esca). Il tasto **M** (mute/unmute,
+`AudioFX`/`Music.toggleMute()`, preferenza persistita in `localStorage`) e' un listener `keydown`
+globale a se stante invece di un'azione `Input`: deve funzionare in qualsiasi schermata, non solo
+durante `"playing"`, e non serve un pulsante touch dedicato. Il toggle da' sempre due riscontri:
+un blip (`AudioFX.audioToggle(muted)`, discendente per mutare/ascendente per riattivare) e
+un'iconcina altoparlante **permanente** nella barra HUD superiore (`drawMusicIcon()`, wrap di
+`game.drawHud`; onde sonore se attiva, barrata in rosso se muta) — disegnata a primitivi del
+canvas, non uno sprite in `sprites.js`, perche' e' un'icona UI legata allo stato audio, non un
+personaggio/oggetto di gioco.
 
 ## Gestione Mobile
 
