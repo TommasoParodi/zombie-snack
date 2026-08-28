@@ -6,9 +6,22 @@ stesso commit della modifica.
 
 ## Cos'e' il progetto
 
-Zombie Snack: platform/shooter 2D retro (pixel art), HTML5 Canvas + JavaScript puro (vanilla,
-nessun framework). Nessuna build, nessuna dipendenza, nessun bundler: `index.html` si apre
-direttamente nel browser e carica gli script in `<script>` tag classici (non moduli ES).
+Zombie Snack — Ermit Edition: platform/shooter 2D retro (pixel art), HTML5 Canvas + JavaScript
+puro (vanilla, nessun framework). Nessuna build, nessuna dipendenza, nessun bundler: `index.html`
+si apre direttamente nel browser e carica gli script in `<script>` tag classici (non moduli ES).
+Scherzo interno aziendale: solo il nome richiama deliberatamente [ermit.it](https://www.ermit.it/)
+(badge "ERMIT EDITION" accanto al titolo, vedi "Palette colori" sotto); il resto del gioco
+(personaggi, meccaniche, palette) non ha alcun legame col sito.
+
+### Palette colori
+La palette del gioco e' il verde neon originale (`COLORS.accent` in `js/game.js`,
+`--neon`/`--neon-dim` in `css/style.css`, pulsanti Game Boy magenta `--gb-magenta`/
+`--gb-magenta-dark`): il rebrand "Ermit Edition" e' solo nel nome, non nei colori. L'unica
+eccezione e' il badge "ERMIT EDITION" stesso (`.cabinet__edition` in `index.html`/`css/style.css`,
+piu' il sottotitolo omonimo disegnato in `drawSplash()`), colorato col rosso reale di Ermit
+(`COLORS.ermitRed`/`--ermit-red`/`--ermit-red-dim` = `#bc2020`, dalle custom properties
+`--color-accent`/`--color-main` di `ermit.it/assets/scss/main.css`) invece del verde/accento di
+gioco, apposta per farlo risaltare come "timbro" separato dal resto della UI.
 
 Per testare su telefono reale serve un server locale (es. `python3 -m http.server`) e aprire
 l'indirizzo Wi-Fi del PC dal browser del telefono, oppure copiare la cartella sul telefono.

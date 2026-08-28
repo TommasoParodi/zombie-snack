@@ -1,6 +1,6 @@
-# 🧟 Zombie Snack
+# 🧟 Zombie Snack — Ermit Edition
 
-**Zombie Snack** è un survival retro in pixel art in cui persone discutibilmente qualificate affrontano orde di zombie usando armi ancora più discutibili.
+**Zombie Snack** è un survival retro in pixel art in cui persone discutibilmente qualificate affrontano orde di zombie usando armi ancora più discutibili. Questa è l'edizione scherzosa "griffata" [Ermit](https://www.ermit.it/), colori compresi.
 
 🎮 **Gioca qui:** https://tommasoparodi.github.io/zombie-snack/
 

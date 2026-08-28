@@ -4,6 +4,11 @@
   --bg: #0b0d10;
   --panel: #14181d;
 
+  /* Rosso di Ermit (ermit.it, --color-accent in /assets/scss/main.css), riservato al solo
+     badge "ERMIT EDITION": il resto della palette resta il verde neon originale. */
+  --ermit-red: #bc2020;
+  --ermit-red-dim: #6e1313;
+
   /* Plastica e pulsanti del "Game Boy" sul telefono */
   --gb-body: #c5c3b8;
   --gb-body-dark: #9e9c90;
@@ -43,6 +48,19 @@ body {
   font-size: clamp(22px, 5vw, 40px);
   text-transform: uppercase;
   text-shadow: 0 0 8px var(--neon), 0 0 22px var(--neon-dim);
+}
+
+.cabinet__edition {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.4em;
+  font-size: 0.3em;
+  letter-spacing: 2px;
+  color: var(--ermit-red);
+  border: 1px solid var(--ermit-red-dim);
+  border-radius: 3px;
+  padding: 0.3em 0.5em;
+  text-shadow: none;
 }
 
 .handheld {

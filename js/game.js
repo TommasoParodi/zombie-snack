@@ -27,6 +27,8 @@ const COLORS = {
   text: "#e8f0d8",
   accent: "#7ce87c",
   warn: "#e04b3a",
+  // Rosso di Ermit (ermit.it, --color-accent), riservato al solo badge "ERMIT EDITION".
+  ermitRed: "#bc2020",
 };
 
 /**
@@ -767,6 +769,7 @@ const game = {
 
     const pulse = 28 + Math.sin(Date.now() / 260) * 1.5;
     text("ZOMBIE SNACK", GAME_W / 2, 62, { size: pulse, align: "center", color: COLORS.accent });
+    text("ERMIT EDITION", GAME_W / 2, 96, { size: 9, align: "center", color: COLORS.ermitRed });
 
     const blink = Math.floor(Date.now() / 400) % 2 === 0;
     if (blink) {
