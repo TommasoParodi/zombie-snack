@@ -49,6 +49,8 @@ CHARACTERS.push({
     max: 100,
     hitCharge: 4,
     killBonus: 8,
+    // Danno (non insta-kill) inflitto al boss di fine livello (vedi TireBurstEffect.update() sotto).
+    bossDamage: 40,
   },
 });
 
@@ -70,6 +72,8 @@ class TireBurstEffect {
     this.explodeTimer = 18;
     this.dead = false;
     this.hitZombieIds = new Set();
+    this.bossDamage = player.character.super.bossDamage;
+    this.hitBoss = false;
   }
 
   get hitbox() {
@@ -108,6 +112,22 @@ class TireBurstEffect {
       this.game.registerKill(zombie);
       this.game.superActive = false;
       this.game.spawnImpact(zx, zy);
+    }
+
+    // Boss: fuori da game.zombies (vedi js/boss.js), controllato a parte con la stessa
+    // geometria a raggio usata sopra per gli zombie normali. Danno parziale, non insta-kill.
+    const boss = this.game.boss;
+    if (boss && !this.hitBoss && !boss.dead) {
+      const bx = boss.x + boss.w / 2;
+      const by = boss.y + boss.h / 2;
+      if (Math.hypot(bx - cx, by - cy) <= this.explodeRadius) {
+        this.hitBoss = true;
+        this.game.superActive = true;
+        const killed = boss.takeDamage(this.bossDamage);
+        if (killed) this.game.registerKill(boss);
+        this.game.superActive = false;
+        this.game.spawnImpact(bx, by);
+      }
     }
 
     this.explodeTimer--;

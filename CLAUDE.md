@@ -26,6 +26,8 @@ js/firebase-config.js   0) configurazione del progetto Firebase (per js/scores.j
 js/sprites.js           1) SPRITES (mappe di caratteri), CHARACTERS, palette, drawSprite/drawSpriteTinted
 js/input.js             2) Input: astrae tastiera + touch dietro azioni logiche condivise
 js/entities.js          3) costanti mondo di gioco, classi Player/Projectile/Zombie/Particle/FloatingText
+js/boss.js              3.4) classe Boss + bossConfigForLevel(level) — entita' di fine livello,
+                        riusa SPRITES.zombie/drawSprite, entita' core non un monkeypatch
 js/scores.js            3.5) modulo `Scores`: salva i punteggi su Firestore (fallback localStorage)
 js/game.js              4) oggetto `game`: state machine, spawn, collisioni, punteggio, disegno, avvio (game.init())
 ```
@@ -48,15 +50,18 @@ transform e ridisegna a risoluzione reale per restare nitido invece di scalare i
 
 ### Macchina a stati del gioco
 `game.state` e' una stringa: `menu -> playing -> (paused | confirmQuit) -> enterName -> gameover ->
-menu`. Lo stato `enterName` si inserisce tra la morte del giocatore (`endGame()`) e la normale
-schermata di game over: mostra un selettore di nickname stile arcade a 3 caselle
-(`updateEnterName`/`drawEnterName`, costante `NAME_CHARSET`), poi salva il punteggio (o lo salta)
-tramite `Scores.save()` (vedi `js/scores.js` e `docs/punteggi-persistenza.md`) prima di passare a
-`"gameover"`. `game.update()` fa uno switch sullo stato e delega a
+menu`, con un ramo secondario `playing -> levelClear -> (playing [livello successivo] | menu)` per
+il sistema di livelli (vedi sezione dedicata sotto). Lo stato `enterName` si inserisce tra la morte
+del giocatore (`endGame()`) e la normale schermata di game over: mostra un selettore di nickname
+stile arcade a 3 caselle (`updateEnterName`/`drawEnterName`, costante `NAME_CHARSET`), poi salva il
+punteggio (o lo salta) tramite `Scores.save()` (vedi `js/scores.js` e
+`docs/punteggi-persistenza.md`) prima di passare a `"gameover"`. **`enterName`/`gameover` restano
+riservati alla sola morte del giocatore**: il sistema di livelli non li tocca mai, anche quando la
+run continua per molti livelli. `game.update()` fa uno switch sullo stato e delega a
 `updateMenu()`/`updatePlaying()`/`updateEnterName()`/inline per gli altri; `game.draw()` fa lo
 stesso per il disegno (`drawMenu`, `drawWorld`+`drawHud`, `drawPause`, `drawConfirmQuit`,
-`drawEnterName`, `drawGameOver`). Aggiungere un nuovo stato = aggiungere un case in entrambi gli
-switch, piu' l'eventuale funzione `drawX`/`updateX`.
+`drawEnterName`, `drawLevelClear`, `drawGameOver`). Aggiungere un nuovo stato = aggiungere un case
+in entrambi gli switch, piu' l'eventuale funzione `drawX`/`updateX`.
 
 ### Game loop
 `requestAnimationFrame` ricorsivo in `game.loop()`: `update()` -> `draw()` -> `Input.endFrame()`.
@@ -136,7 +141,63 @@ proprio `character.id`), una classe effetto dedicata (`MustardJarEffect`/`Pollut
 `Player.prototype.update`/`Zombie.prototype.takeDamage`/`game.registerKill` (ognuno cattura
 `base...` = versione corrente della funzione, la richiama, poi aggiunge il proprio comportamento
 solo se `character.id` corrisponde). Aggiungere un altro personaggio con super = nuovo file che
-segue lo stesso schema, caricato dopo `game.js` in `index.html`.
+segue lo stesso schema, caricato dopo `game.js` in `index.html`. Ognuna delle tre classi effetto
+infligge anche danno **parziale** (non insta-kill) a `game.boss` quando presente, tramite
+`character.super.bossDamage` — il boss e' fuori da `game.zombies` (vedi sezione "Sistema di
+livelli e boss" sotto), quindi ogni effetto lo controlla a parte con un flag `hitBoss` per non
+applicare il danno piu' volte se resta a contatto per piu' frame.
+
+### Sistema di livelli e boss
+Il gioco e' a livelli **infiniti**: `game.level` (parte da 1, incrementato in `nextLevel()`),
+`game.levelKills` (uccisioni nel livello corrente, azzerate ad ogni livello) e
+`game.levelKillsToSpawnBoss` (soglia che cresce col livello, `20 + (level-1)*8`) determinano
+quando `updatePlaying()` chiama `spawnBoss()`. Il boss (`js/boss.js`, classe `Boss` +
+`bossConfigForLevel(level)`) **non entra in `game.zombies`**: e' un campo singolo dedicato
+(`game.boss`, istanza o `null`) con collisione esplicita separata in `resolveCollisions()`
+(proiettili-vs-boss e boss-vs-player, blocchi paralleli a quelli dei normali zombie invece di
+generalizzare l'array condiviso — coerente con lo stile del progetto, un'entita' con una sola
+istanza alla volta e semantica diversa da uno zombie usa-e-getta non vale un'astrazione).
+
+Aspetto: dato che i livelli sono infiniti non si disegna un boss unico per livello, si ruota su un
+**roster fisso di 4 aspetti** (`BOSS_ROSTER` in `js/boss.js`: Colosso/Testone/Corazzato/Falce, ognuno
+con `{name, sprite, palette}`), scelto ciclicamente in `bossConfigForLevel(level)` con
+`(level-1) % BOSS_ROSTER.length` — stesso principio di varieta' con un set finito gia' usato da
+`ZOMBIE_TYPES`. Tutti e 4 restano sulla griglia 10x14 di `SPRITES.zombie` (Colosso la riusa
+com'e', gli altri tre sono forme nuove, Corazzato riusa testa/gambe di `SPRITES.zombie` e cambia
+solo il torso) cosi' `Boss.w`/`Boss.h` non hanno bisogno di sapere quale aspetto e' in uso.
+Aggiungere un quinto aspetto = una nuova voce in `BOSS_ROSTER` (+ eventuale nuovo sprite 10x14),
+nessun'altra modifica. Il boss ha una firma compatibile con `Zombie` (`hitbox`, `takeDamage`,
+`type.points`) cosi' puo' passare per `game.registerKill`/`spawnGore`/`spawnImpact` senza
+modificare quelle funzioni. Fasi di `Boss.update()`: entra da un bordo verso il centro
+("entering"), poi pattuglia avanti e indietro senza mai uscire dai bordi ("patrol", zona
+`patrolMinX`..`patrolMaxX`), con cariche periodiche verso il giocatore ("charge") ed evocazione
+di zombie "walker" di rinforzo (`summonInterval`/`summonCount`, entrambi scalati per livello).
+Mentre `game.boss` e' presente, `updateSpawning()` sospende lo spawn normale (`if (this.boss)
+return;`): il boss evoca da solo i propri rinforzi.
+
+Alla morte del boss, `updatePlaying()` chiama `completeLevel()`: calcola `game.levelPerfect`
+confrontando `this.player.lives` con `game.livesAtLevelStart` (**si azzera ad ogni livello**, non
+e' "nessuna vita persa nell'intera run" — coerente con uno "stage clear perfetto" arcade
+classico), poi passa allo stato `"levelClear"` (`drawLevelClear()`: resoconto in stile Metal
+Slug — personaggio disegnato grande e vincitore, testo pomposo/ironico, statistiche di run
+`this.kills`/`this.score` gia' esistenti, "PERFECT" se applicabile). Da li' `confirm`/`jump` va a
+`nextLevel()` (stessa run, punteggio/vite/personaggio invariati, difficolta' piu' alta), `back`/
+`dodge` torna al menu (stesso comportamento di uscita di `confirmQuit`, nessun salvataggio —
+quello resta riservato a `enterName`/morte del giocatore).
+
+Due dettagli non ovvi, utili se si tocca questa logica:
+- `game.livesAtLevelStart` parte a `null` in `startGame()` invece del valore reale delle vite, e
+  viene catturato pigramente al primo frame di `"playing"` in `updatePlaying()`. Motivo:
+  `character-lives.js` fa il wrap di `startGame()` e sovrascrive `this.player.lives` col valore
+  per personaggio **dopo** aver chiamato la versione base — catturarlo dentro `startGame()`
+  leggerebbe ancora il default del costruttore `Player` (3), non le vite reali del personaggio
+  scelto (5 per Berto/Tommen/Pruzzo).
+- `nextLevel()` azzera anche `this.frame`: la rampa di difficolta' a tempo di `updateSpawning()`
+  (quella preesistente, gia' presente prima del sistema di livelli) satura dopo ~2 minuti;
+  azzerarla ad ogni livello la fa ripartire, cosi' il bonus di difficolta' legato a `game.level`
+  (sommato alle stesse tre formule: intervallo di spawn, soglie di sblocco runner/brute,
+  `speedBonus`) resta percepibile fin dai primi secondi di ogni livello invece di diventare quasi
+  l'unico fattore dopo i primi minuti di gioco.
 
 ### Selezione personaggio a carosello
 `drawMenu()`/`updateMenu()` in `game.js` non assumono mai un numero fisso di personaggi: mostrano

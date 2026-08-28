@@ -111,6 +111,15 @@ const game = {
     this.frame = 0;
     this.spawnTimer = 70;
     this.screenShake = 0;
+    this.level = 1;
+    this.levelKills = 0;
+    this.levelKillsToSpawnBoss = 20;
+    this.boss = null;
+    // null (non 0): catturato pigramente al primo frame di "playing", DOPO che eventuali
+    // wrap di startGame() (es. character-lives.js) hanno gia' impostato le vite reali del
+    // personaggio scelto — altrimenti "PERFECT" al livello 1 leggerebbe il default del
+    // costruttore Player invece delle vite effettive.
+    this.livesAtLevelStart = null;
     this.state = "playing";
   },
 
@@ -185,6 +194,10 @@ const game = {
       case "enterName":
         this.updateEnterName();
         break;
+      case "levelClear":
+        if (Input.wasPressed("confirm") || Input.wasPressed("jump")) this.nextLevel();
+        if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.goToMenu();
+        break;
       case "gameover":
         if (Input.wasPressed("confirm") || Input.wasPressed("jump") || Input.wasPressed("attack")) this.startGame();
         if (Input.wasPressed("back") || Input.wasPressed("dodge")) this.goToMenu();
@@ -235,6 +248,7 @@ const game = {
 
     this.projectiles.forEach((p) => p.update());
     this.zombies.forEach((z) => z.update());
+    if (this.boss) this.boss.update(this);
     this.particles.forEach((p) => p.update());
     this.texts.forEach((t) => t.update());
 
@@ -245,25 +259,40 @@ const game = {
     this.particles = this.particles.filter((p) => !p.dead);
     this.texts = this.texts.filter((t) => !t.dead);
 
-    if (this.player.lives <= 0) this.endGame();
+    if (this.livesAtLevelStart === null) this.livesAtLevelStart = this.player.lives;
+
+    if (this.player.lives <= 0) {
+      this.endGame();
+      return;
+    }
+    if (this.boss && this.boss.dead) {
+      this.completeLevel();
+      return;
+    }
+    if (!this.boss && this.levelKills >= this.levelKillsToSpawnBoss) this.spawnBoss();
   },
 
-  /** La difficolta' cresce col tempo: spawn piu' frequenti e zombie piu' rapidi. */
+  /** La difficolta' cresce col tempo E col livello: spawn piu' frequenti e zombie piu' rapidi. */
   updateSpawning() {
+    if (this.boss) return; // durante il boss fight lo spawn normale e' sospeso (il boss evoca da solo)
+
     this.spawnTimer--;
     if (this.spawnTimer > 0) return;
 
     const minutes = this.frame / 3600;
-    const interval = Math.max(28, 100 - Math.floor(this.frame / 240) * 5);
+    const levelBonus = this.level - 1;
+    const interval = Math.max(20, 100 - Math.floor(this.frame / 240) * 5 - levelBonus * 3);
     this.spawnTimer = interval + Math.floor(Math.random() * 25);
 
     const roll = Math.random();
     let typeName = "walker";
-    if (roll > 0.85 && this.frame > 900) typeName = "brute";
-    else if (roll > 0.55 && this.frame > 420) typeName = "runner";
+    const bruteThreshold = Math.max(200, 900 - levelBonus * 80);
+    const runnerThreshold = Math.max(100, 420 - levelBonus * 40);
+    if (roll > 0.85 && this.frame > bruteThreshold) typeName = "brute";
+    else if (roll > 0.55 && this.frame > runnerThreshold) typeName = "runner";
 
     const fromLeft = Math.random() < 0.4;
-    const speedBonus = Math.min(0.9, minutes * 0.45);
+    const speedBonus = Math.min(0.9 + levelBonus * 0.08, minutes * 0.45 + levelBonus * 0.05);
     this.zombies.push(new Zombie(typeName, fromLeft, speedBonus));
   },
 
@@ -302,9 +331,41 @@ const game = {
         this.texts.push(new FloatingText(this.player.x + 5, this.player.y - 8, "AHIA!", COLORS.warn));
       }
     }
+
+    // Proiettili contro il boss: il boss non e' in this.zombies (e' un'entita' con una sola
+    // istanza per volta, non un nemico usa-e-getta), quindi la sua collisione e' un blocco
+    // esplicito separato invece di generalizzare il loop sopra.
+    if (this.boss && !this.boss.dead) {
+      for (const projectile of this.projectiles) {
+        if (projectile.dead) continue;
+        if (projectile.hitZombieIds && projectile.hitZombieIds.has(this.boss)) continue;
+        if (!rectsOverlap(projectile.hitbox, this.boss.hitbox)) continue;
+
+        if (projectile.hitZombieIds) projectile.hitZombieIds.add(this.boss);
+        const killed = this.boss.takeDamage(projectile.config.damage);
+        this.spawnImpact(projectile.x, projectile.y);
+        if (killed) this.registerKill(this.boss);
+        if (!projectile.config.pierce) {
+          projectile.dead = true;
+          break;
+        }
+      }
+    }
+
+    // Boss contro il giocatore
+    if (this.boss && !this.boss.dead && rectsOverlap(this.player.hitbox, this.boss.hitbox)) {
+      if (this.player.takeHit(this.boss.x)) {
+        this.screenShake = 10;
+        this.combo = 0;
+        this.comboTimer = 0;
+        this.texts.push(new FloatingText(this.player.x + 5, this.player.y - 8, "AHIA!", COLORS.warn));
+      }
+    }
   },
 
   registerKill(zombie) {
+    // Il boss non conta per la soglia di uccisioni che fa comparire il PROSSIMO boss.
+    if (zombie !== this.boss) this.levelKills++;
     this.kills++;
     this.combo = Math.min(this.combo + 1, 5);
     this.comboTimer = 150;
@@ -336,6 +397,36 @@ const game = {
     for (let i = 0; i < 5; i++) {
       this.particles.push(new Particle(x, y - 1, (Math.random() - 0.5) * 1.6, -Math.random(), "#6b7a5a", 12));
     }
+  },
+
+  spawnBoss() {
+    const cfg = bossConfigForLevel(this.level);
+    this.boss = new Boss(cfg, Math.random() < 0.5);
+    this.texts.push(new FloatingText(GAME_W / 2, 40, `ARRIVA IL BOSS: ${cfg.name}!`, COLORS.warn));
+    this.screenShake = 14;
+  },
+
+  /** Boss sconfitto: passa al resoconto di fine livello (non tocca gameover/enterName, riservati alla morte). */
+  completeLevel() {
+    this.levelPerfect = this.player.lives === this.livesAtLevelStart;
+    this.boss = null;
+    this.state = "levelClear";
+    this.screenShake = 16;
+  },
+
+  /** Prepara il livello successivo: stessa run (punteggio/vite/personaggio invariati), difficolta' piu' alta. */
+  nextLevel() {
+    this.level++;
+    this.frame = 0; // riparte la rampa di difficolta' a tempo di updateSpawning() per il nuovo livello
+    this.levelKills = 0;
+    this.levelKillsToSpawnBoss = 20 + (this.level - 1) * 8;
+    this.livesAtLevelStart = this.player.lives;
+    this.zombies = [];
+    this.projectiles = [];
+    this.particles = [];
+    this.texts = [];
+    this.spawnTimer = 70;
+    this.state = "playing";
   },
 
   endGame() {
@@ -402,6 +493,7 @@ const game = {
       if (this.state === "paused") this.drawPause();
       if (this.state === "confirmQuit") this.drawConfirmQuit();
       if (this.state === "enterName") this.drawEnterName();
+      if (this.state === "levelClear") this.drawLevelClear();
       if (this.state === "gameover") this.drawGameOver();
     }
   },
@@ -447,6 +539,7 @@ const game = {
 
   drawWorld() {
     this.zombies.forEach((z) => z.draw(ctx));
+    if (this.boss) this.boss.draw(ctx);
     this.projectiles.forEach((p) => p.draw(ctx));
     this.player.draw(ctx);
     this.particles.forEach((p) => p.draw(ctx));
@@ -470,6 +563,21 @@ const game = {
 
     if (this.combo > 1) {
       text(`COMBO x${this.combo}`, 5, 19, { size: 8, color: "#ffe066" });
+    }
+
+    text(`LIVELLO ${this.level}`, GAME_W - 5, 19, { size: 7, align: "right", color: "#a9c9a9" });
+
+    // Barra vita del boss: sotto la barra superiore (che occupa 0-16) per non
+    // sovrapporsi a PUNTI/RECORD.
+    if (this.boss) {
+      const pct = Math.max(0, this.boss.hp / this.boss.maxHp);
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(GAME_W / 2 - 60, 19, 120, 7);
+      ctx.strokeStyle = COLORS.warn;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(GAME_W / 2 - 59.5, 19.5, 119, 6);
+      ctx.fillStyle = COLORS.warn;
+      ctx.fillRect(GAME_W / 2 - 58, 21, 116 * pct, 3);
     }
 
     // Barra di ricarica dell'attacco
@@ -624,6 +732,37 @@ const game = {
       align: "center",
       color: "#a9c9a9",
     });
+  },
+
+  /** Resoconto di fine livello, stile "debriefing" pomposo/ironico (vedi Metal Slug): il
+   * personaggio va ritratto vincitore anche se la sua "arma" e' una tazzina di caffe'. */
+  drawLevelClear() {
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+    text(`LIVELLO ${this.level} COMPLETATO`, GAME_W / 2, 10, { size: 14, align: "center", color: COLORS.accent });
+    text("MISSIONE COMPIUTA, EROE DI GUERRA", GAME_W / 2, 26, { size: 8, align: "center", color: "#ffe066" });
+    text(`(A SUON DI ${this.character.weapon})`, GAME_W / 2, 36, { size: 7, align: "center", color: "#a9c9a9" });
+
+    const sprite = SPRITES[this.character.sprites.stand];
+    const scale = 4;
+    drawSprite(ctx, sprite, GAME_W / 2 - (sprite[0].length * scale) / 2, 50, this.character.palette, false, scale);
+
+    text(`ZOMBIE ELIMINATI: ${this.kills}`, GAME_W / 2, 120, { size: 8, align: "center" });
+    text(`PUNTI: ${this.score}`, GAME_W / 2, 132, { size: 8, align: "center", color: COLORS.accent });
+    if (this.levelPerfect) {
+      text("PERFECT!", GAME_W / 2, 144, { size: 11, align: "center", color: "#ffe066" });
+    }
+
+    const blink = Math.floor(Date.now() / 400) % 2 === 0;
+    if (blink) {
+      text(
+        this.hint("INVIO = LIVELLO SUCCESSIVO   ESC = MENU", "A = LIVELLO SUCCESSIVO   SELECT = MENU"),
+        GAME_W / 2,
+        166,
+        { size: 7, align: "center", color: "#ffe066" }
+      );
+    }
   },
 
   drawGameOver() {
